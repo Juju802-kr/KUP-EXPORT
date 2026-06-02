@@ -1,0 +1,15 @@
+node_modules
+.next
+.tools
+.env
+.env.*
+!.env.example
+email/env
+dev-server*.log
+*.log
+tsconfig.tsbuildinfo
+.vercel
+*.db
+*.db-journal
+/uploads/*
+!/uploads/.gitkeep

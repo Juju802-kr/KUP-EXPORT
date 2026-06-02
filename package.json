@@ -1,0 +1,40 @@
+{
+  "name": "shipping-agent",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "seed": "tsx prisma/seed.ts",
+    "deploy:migrate": "prisma migrate deploy",
+    "postinstall": "prisma generate"
+  },
+  "dependencies": {
+    "@prisma/client": "6.8.2",
+    "@supabase/supabase-js": "^2.106.2",
+    "bcryptjs": "^3.0.2",
+    "lucide-react": "^0.511.0",
+    "next": "^15.3.3",
+    "nodemailer": "^8.0.10",
+    "postcss": "^8.5.15",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "zod": "^3.25.28"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.15.24",
+    "@types/nodemailer": "^6.4.17",
+    "@types/react": "^19.1.6",
+    "@types/react-dom": "^19.1.5",
+    "autoprefixer": "^10.4.21",
+    "eslint": "^9.27.0",
+    "eslint-config-next": "^15.3.3",
+    "prisma": "6.8.2",
+    "tailwindcss": "^3.4.17",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  }
+}
