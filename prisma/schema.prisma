@@ -1,0 +1,352 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Team {
+  OVERSEAS_MARKETING
+  OVERSEAS_SALES_SUPPORT
+  OVERSEAS_SALES
+  SEOMYEON_QA
+  JEONDONG_QA
+  OVERSEAS_BRANCH
+}
+
+enum ShipmentStatus {
+  REQUEST_WAITING
+  QUOTE
+  SCHEDULE
+  SHIPPING_DOCS
+  NEGO_COLLECTION
+  AFTERCARE
+}
+
+enum Factory {
+  JEONDONG
+  SEOMYEON
+}
+
+enum DropdownCategory {
+  EXPORT_COUNTRY
+  TRANSPORT
+  DESTINATION_PORT
+  STORAGE_CONDITION
+  INCOTERMS
+  PAYMENT_TERM
+  DEPOSIT_STATUS
+  CURRENCY
+  FORWARDER
+  DEPARTURE_PORT
+}
+
+enum PaymentLcKind {
+  OPEN
+  AMEND
+  AMEND_1ST
+  AMEND_2ND
+  AMEND_3RD
+  AMEND_4TH
+  AMEND_5TH
+}
+
+enum NoticeType {
+  GENERAL
+  URGENT
+  MEETING
+  SHARE
+  ETC
+}
+
+enum AttachmentOwnerType {
+  SHIPMENT
+  SHIPMENT_PRODUCT
+  PAYMENT_TT
+  PAYMENT_LC
+  NOTICE
+}
+
+model User {
+  id           String   @id @default(cuid())
+  team         Team
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions Session[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ProductMaster {
+  id            String   @id @default(cuid())
+  name          String
+  costGroupCode String
+  factory       Factory
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  createdById   String?
+  updatedById   String?
+}
+
+model BuyerMaster {
+  id                    String   @id @default(cuid())
+  exportCountry         String
+  buyerName             String
+  defaultCurrency       String?
+  salesOwner            String?
+  exportOwner           String?
+  salesEmailRecipients  String?
+  exportEmailRecipients String?
+  branchEmailRecipients String?
+  contactPerson         String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  createdById           String?
+  updatedById           String?
+
+  @@index([exportCountry, buyerName])
+}
+
+model DropdownOption {
+  id          String           @id @default(cuid())
+  category    DropdownCategory
+  label       String
+  value       String
+  sortOrder   Int              @default(0)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  createdById String?
+  updatedById String?
+
+  @@unique([category, label])
+}
+
+model ShipmentRequest {
+  id                    String         @id @default(cuid())
+  shipNo                String         @unique
+  status                ShipmentStatus @default(QUOTE)
+  exportCountry         String?
+  buyer                 String?
+  transport             String?
+  destinationPort       String?
+  storageCondition      String?
+  incoterms             String?
+  paymentTerm           String?
+  forwarder             String?
+  departurePort         String?
+  transitFlight         String?
+  currency              String?
+  depositStatus         String?
+  salesRequest          String?
+  emailSent             String?
+  note                  String?
+  releaseDate           DateTime?
+  etd                   DateTime?
+  eta                   DateTime?
+  invNo                 String?
+  productionRequestNo   String?
+  lcSd                  String?
+  salesOwner            String?
+  exportOwner           String?
+  salesEmailRecipients  String?
+  exportEmailRecipients String?
+  branchEmailRecipients String?
+  contactPerson         String?
+  reporter              String?
+  invoiceValue          Decimal        @default(0)
+  linkedLcId            String?
+  freightTotal          Decimal        @default(0)
+  dispatchNote          String?
+  sortOrder             Int            @default(0)
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  createdById           String
+  updatedById           String
+
+  products ShipmentProduct[]
+  lcLinks  LcShipmentLink[]
+}
+
+model ShipmentProduct {
+  id                    String          @id @default(cuid())
+  shipmentId            String
+  productMasterId       String?
+  productName           String
+  costGroupCode         String?
+  factory               Factory?
+  englishName           String?
+  productionRequestNo   String?
+  piNo                  String?
+  lotNo                 String?
+  exportUnitPrice       Decimal         @default(0)
+  bxQtyPaid             Int             @default(0)
+  bxQtyFoc              Int             @default(0)
+  bxQtyTotal            Int             @default(0)
+  changeNote            String?
+  normalBoxQty          Int             @default(0)
+  iceBoxQty             Int             @default(0)
+  injectionBoxQty       Int             @default(0)
+  commonBoxQty          Int             @default(0)
+  grossWeight           Decimal         @default(0)
+  exportEmailRecipients String?
+  amount                Decimal         @default(0)
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  createdById           String
+  updatedById           String
+  shipment              ShipmentRequest @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+}
+
+model PaymentTT {
+  id                    String   @id @default(cuid())
+  exportCountry         String?
+  buyer                 String?
+  amount                Decimal  @default(0)
+  currency              String?
+  date                  DateTime?
+  refNo                 String?
+  description           String?
+  productionRequestNo   String?
+  invNo                 String?
+  note                  String?
+  exportOwner           String?
+  depositOwner          String?
+  salesOwner            String?
+  salesEmailRecipients  String?
+  exportEmailRecipients String?
+  xporterUrl            String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  createdById           String
+  updatedById           String
+}
+
+model PaymentLC {
+  id                    String        @id @default(cuid())
+  kind                  PaymentLcKind @default(OPEN)
+  bank                  String?
+  exportCountry         String?
+  buyer                 String?
+  amount                Decimal       @default(0)
+  currency              String?
+  lcSd                  String?
+  note                  String?
+  noticeDate            DateTime?
+  lcNo                  String?
+  productionRequestNo   String?
+  exportOwner           String?
+  depositOwner          String?
+  salesOwner            String?
+  salesEmailRecipients  String?
+  exportEmailRecipients String?
+  form                  String?
+  xporterUrl            String?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  createdById           String
+  updatedById           String
+
+  shipmentLinks LcShipmentLink[]
+}
+
+model LcShipmentLink {
+  id         String          @id @default(cuid())
+  lcId       String
+  shipmentId String
+  createdAt  DateTime        @default(now())
+  createdById String
+  lc         PaymentLC       @relation(fields: [lcId], references: [id], onDelete: Cascade)
+  shipment   ShipmentRequest @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@unique([lcId, shipmentId])
+}
+
+model Notice {
+  id          String     @id @default(cuid())
+  title       String
+  content     String
+  type        NoticeType @default(GENERAL)
+  important   Boolean    @default(false)
+  place       String?
+  scheduleDate DateTime?
+  scheduleEndDate DateTime?
+  sendEmail   Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  createdById String
+  updatedById String
+
+  recipientTeams NoticeRecipientTeam[]
+}
+
+model NoticeRecipientTeam {
+  id       String @id @default(cuid())
+  noticeId String
+  team     String
+  notice   Notice @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+
+  @@unique([noticeId, team])
+}
+
+model TeamEmail {
+  id          String   @id @default(cuid())
+  team        Team
+  email       String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  @@unique([team, email])
+}
+
+model Attachment {
+  id             String              @id @default(cuid())
+  ownerType      AttachmentOwnerType
+  ownerId        String
+  originalName   String
+  storedName     String
+  path           String
+  mimeType       String?
+  size           Int
+  createdAt      DateTime            @default(now())
+  uploadedById   String
+
+  @@index([ownerType, ownerId])
+}
+
+model EmailLog {
+  id          String   @id @default(cuid())
+  to          String
+  subject     String
+  body        String
+  status      String
+  error       String?
+  createdAt   DateTime @default(now())
+  createdById String?
+}
+
+model DataLogger {
+  id            String   @id @default(cuid())
+  loggerNo      String?
+  quantity      String?
+  receivedDate  String?
+  releaseStatus String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  createdById   String
+  updatedById   String
+}
