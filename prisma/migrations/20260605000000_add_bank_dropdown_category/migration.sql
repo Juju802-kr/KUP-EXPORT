@@ -1,0 +1,1 @@
+ALTER TYPE "DropdownCategory" ADD VALUE IF NOT EXISTS 'BANK';

@@ -8,7 +8,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   const params = await searchParams;
   const tab = params.tab === "lc" ? "lc" : "tt";
   const q = params.q?.trim();
-  const [ttPayments, lcPayments, buyers, users, countries] = await Promise.all([
+  const [ttPayments, lcPayments, buyers, users, countries, banks] = await Promise.all([
     prisma.paymentTT.findMany({
       where: q
         ? { OR: [{ exportCountry: { contains: q } }, { buyer: { contains: q } }, { refNo: { contains: q } }, { productionRequestNo: { contains: q } }, { invNo: { contains: q } }] }
@@ -29,6 +29,11 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
     }),
     prisma.dropdownOption.findMany({
       where: { category: DropdownCategory.EXPORT_COUNTRY },
+      orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+      select: { label: true }
+    }),
+    prisma.dropdownOption.findMany({
+      where: { category: DropdownCategory.BANK },
       orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
       select: { label: true }
     })
@@ -110,6 +115,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
         }))}
         users={users}
         countries={countries.map((country) => country.label)}
+        banks={banks.map((bank) => bank.label)}
         attachments={attachments.map((file) => ({
           id: file.id,
           ownerId: file.ownerId,

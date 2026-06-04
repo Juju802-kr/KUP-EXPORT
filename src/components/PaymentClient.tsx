@@ -107,6 +107,7 @@ export function PaymentClient({
   buyers,
   users,
   countries,
+  banks,
   mode,
   attachments,
   searchQuery
@@ -116,6 +117,7 @@ export function PaymentClient({
   buyers: BuyerOption[];
   users: UserOption[];
   countries: string[];
+  banks: string[];
   mode: "tt" | "lc";
   attachments: AttachmentRow[];
   searchQuery: string;
@@ -128,7 +130,7 @@ export function PaymentClient({
   return mode === "tt" ? (
     <TTSection payments={ttPayments} buyers={buyers} countries={countries} salesOwners={salesOwners} exportOwners={exportOwners} attachments={attachments} searchQuery={searchQuery} />
   ) : (
-    <LCSection payments={lcPayments} buyers={buyers} countries={countries} salesOwners={salesOwners} exportOwners={exportOwners} attachments={attachments} initialEditId={editId} searchQuery={searchQuery} />
+    <LCSection payments={lcPayments} buyers={buyers} countries={countries} banks={banks} salesOwners={salesOwners} exportOwners={exportOwners} attachments={attachments} initialEditId={editId} searchQuery={searchQuery} />
   );
 }
 
@@ -267,6 +269,7 @@ function LCSection({
   payments,
   buyers,
   countries,
+  banks,
   salesOwners,
   exportOwners,
   attachments,
@@ -276,6 +279,7 @@ function LCSection({
   payments: PaymentLCRow[];
   buyers: BuyerOption[];
   countries: string[];
+  banks: string[];
   salesOwners: UserOption[];
   exportOwners: UserOption[];
   attachments: AttachmentRow[];
@@ -333,7 +337,14 @@ function LCSection({
                   <option value={PaymentLcKind.AMEND_5TH}>5th AMEND</option>
                 </select>
               </Field>
-              <Field label="은행"><input name="bank" defaultValue={current.bank ?? ""} /></Field>
+              <Field label="은행">
+                <SearchableCombobox
+                  name="bank"
+                  defaultValue={current.bank ?? ""}
+                  placeholder="은행 선택/입력"
+                  options={banks.map((bank) => ({ value: bank, label: bank }))}
+                />
+              </Field>
               <Field label="국가"><CountryCombobox name="exportCountry" countries={countryOptions} defaultValue={selectedBuyer?.exportCountry ?? current.exportCountry ?? ""} /></Field>
               <BuyerSelect buyers={buyers} value={buyerName || current.buyer || ""} onChange={setBuyerName} />
             </div>

@@ -10,6 +10,7 @@ const options: Record<DropdownCategory, string[]> = {
   INCOTERMS: ["EXW", "FOB", "FCA", "CIF", "CIP", "DAP"],
   PAYMENT_TERM: ["T/T", "L/C", "COD"],
   DEPOSIT_STATUS: ["입금전", "일부입금", "입금완료", "L/C"],
+  BANK: ["\uAD6D\uBBFC\uC740\uD589", "\uC2E0\uD55C\uC740\uD589", "\uD558\uB098\uC740\uD589", "\uC6B0\uB9AC\uC740\uD589"],
   CURRENCY: ["USD", "EUR", "KRW"],
   FORWARDER: ["DHL", "KWE", "판토스"],
   DEPARTURE_PORT: ["인천공항", "부산항", "평택항"]

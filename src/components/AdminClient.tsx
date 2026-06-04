@@ -23,6 +23,7 @@ const dropdownLabels: Record<DropdownCategory, string> = {
   INCOTERMS: "인코텀즈",
   PAYMENT_TERM: "결제조건",
   DEPOSIT_STATUS: "입금상황",
+  BANK: "\uC740\uD589",
   CURRENCY: "통화",
   FORWARDER: "포워딩",
   DEPARTURE_PORT: "출발항"
