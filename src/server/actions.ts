@@ -602,7 +602,7 @@ function readPaymentLCForm(formData: FormData, userId: string) {
     lcNo: formString(formData, "lcNo"),
     productionRequestNo: formString(formData, "productionRequestNo"),
     exportOwner: formString(formData, "exportOwner"),
-    depositOwner: formString(formData, "depositOwner") || "\uC774\uD574\uC6D0",
+    depositOwner: null,
     salesOwner: formString(formData, "salesOwner"),
     salesEmailRecipients: formString(formData, "salesEmailRecipients"),
     exportEmailRecipients: formString(formData, "exportEmailRecipients"),
@@ -690,14 +690,13 @@ async function sendPaymentLcNotifyMail(id: string, userId: string) {
 async function sendPaymentLcConfirmMail(id: string, userId: string) {
   const payment = await prisma.paymentLC.findUnique({ where: { id } });
   if (!payment) return { sent: 0, failed: 1, total: 0 };
-  const recipients = await resolveRecipientEmails([payment.exportOwner, payment.depositOwner], exportOwnerTeams);
+  const recipients = await resolveRecipientEmails([payment.exportOwner], exportOwnerTeams);
   return sendProgramEmail({
     to: recipients,
     subject: `[${payment.exportCountry || ""}/${payment.buyer || ""}] LC No.: ${payment.lcNo || ""} 금액: ${moneyText(payment.currency, payment.amount)} S/D: ${payment.lcSd || ""}`,
     body: [
       "L/C가 확인되었습니다.",
       `수출담당자: ${payment.exportOwner || ""}`,
-      `입금담당자: ${payment.depositOwner || ""}`,
       `링크: ${appUrl()}/payments?tab=lc&edit=${payment.id}`,
       `L/C 상태: ${lcKindText(payment.kind)}`,
       `수출국: ${payment.exportCountry || ""}`,

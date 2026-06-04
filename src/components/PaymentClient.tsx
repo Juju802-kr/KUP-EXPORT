@@ -348,17 +348,16 @@ function LCSection({
               <Field label="국가"><CountryCombobox name="exportCountry" countries={countryOptions} defaultValue={selectedBuyer?.exportCountry ?? current.exportCountry ?? ""} /></Field>
               <BuyerSelect buyers={buyers} value={buyerName || current.buyer || ""} onChange={setBuyerName} />
             </div>
-            <div className="grid grid-cols-5 gap-3">
+            <div className="grid grid-cols-4 gap-3">
               <Field label="통화"><CurrencySelect name="currency" value={autoCurrency} /></Field>
               <Field label="금액"><AmountInput name="amount" defaultValue={current.amount} /></Field>
               <Field label="통지일"><input name="noticeDate" type="date" defaultValue={current.noticeDate} /></Field>
               <Field label="LC S/D"><input name="lcSd" type="date" defaultValue={current.lcSd ?? ""} /></Field>
-              <Field label="LC No."><input name="lcNo" defaultValue={current.lcNo ?? ""} /></Field>
             </div>
             <div className="grid grid-cols-4 gap-3">
+              <Field label="LC No."><input name="lcNo" defaultValue={current.lcNo ?? ""} /></Field>
               <OwnerSelect label="영업담당자" name="salesOwner" users={salesOwners} value={autoSalesOwner} />
               <OwnerSelect label="수출담당자" name="exportOwner" users={exportOwners} value={autoExportOwner} />
-              <OwnerSelect label="입금담당자" name="depositOwner" users={exportOwners} value={autoDepositOwner} fallbackOption="이해원" />
               <Field label="영업메일수신자"><input name="salesEmailRecipients" value={autoSalesRecipients} onChange={() => undefined} /></Field>
             </div>
             <Field label="첨부파일" className="col-span-4">
