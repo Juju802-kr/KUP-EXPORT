@@ -26,7 +26,8 @@ npm run dev
 ## 필수 환경변수
 
 ```env
-DATABASE_URL="postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres?schema=public"
+DATABASE_URL="postgresql://postgres.[PROJECT-REF]:[YOUR-PASSWORD]@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true&sslmode=require&sslaccept=accept_invalid_certs"
+DIRECT_URL="postgresql://postgres.[PROJECT-REF]:[YOUR-PASSWORD]@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require&sslaccept=accept_invalid_certs"
 NEXT_PUBLIC_APP_URL="https://your-vercel-app.vercel.app"
 
 SMTP_HOST="smtp.gmail.com"
@@ -37,7 +38,7 @@ SMTP_FROM="KUP EXPORTER <your-google-account@gmail.com>"
 
 SUPABASE_URL="https://[PROJECT-REF].supabase.co"
 SUPABASE_SERVICE_ROLE_KEY="[SUPABASE-SERVICE-ROLE-KEY]"
-SUPABASE_STORAGE_BUCKET="shipping-agent-uploads"
+SUPABASE_STORAGE_BUCKET="kup-exporter-uploads"
 ```
 
 `SMTP_PASS`에는 Google 계정 일반 비밀번호가 아니라 Google 앱 비밀번호 16자리를 사용합니다.
@@ -61,7 +62,7 @@ SUPABASE_STORAGE_BUCKET="shipping-agent-uploads"
 
 1. Supabase 프로젝트를 생성합니다.
 2. Project Settings에서 PostgreSQL `DATABASE_URL`을 확인합니다.
-3. Storage에서 `shipping-agent-uploads` 버킷을 생성합니다.
+3. Storage에서 `kup-exporter-uploads` 버킷을 생성합니다.
 4. Vercel 환경변수에 `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET`을 등록합니다.
 
 Storage 버킷은 공개 버킷으로 만들 필요가 없습니다. 앱이 서버에서 Service Role Key로 파일을 업로드하고 `/uploads/...` 라우트로 다운로드를 제공합니다.
