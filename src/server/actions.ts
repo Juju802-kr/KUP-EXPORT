@@ -736,7 +736,11 @@ export async function unlinkLcAction(formData: FormData) {
   redirect(`/shipments/${shipmentId}`);
 }
 
-const appUrl = () => process.env.NEXT_PUBLIC_APP_URL ?? "http://127.0.0.1:3000";
+const appUrl = () => {
+  const configured = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL || "http://127.0.0.1:3000";
+  const withProtocol = configured.startsWith("http") ? configured : `https://${configured}`;
+  return withProtocol.replace(/\/$/, "");
+};
 const moneyText = (currency?: string | null, amount?: unknown) => `${currency || "USD"}${Number(amount ?? 0).toLocaleString("ko-KR", { maximumFractionDigits: 2 })}`;
 const firstProductName = (products: Array<{ productName: string | null }>) => products[0]?.productName || "제품";
 
@@ -1084,7 +1088,7 @@ export async function createNoticeAction(formData: FormData) {
         `일정 날짜: ${fmtDate(notice.scheduleDate)}`,
         `작성자: ${user.name}`,
         `작성일: ${fmtDate(notice.createdAt)}`,
-        `바로가기: ${(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000")}/notices#${notice.id}`
+        `바로가기: ${appUrl()}/notices#${notice.id}`
       ].join("\n"),
       createdById: user.id
     });
