@@ -805,6 +805,12 @@ async function shipmentWithProducts(id: string) {
   return prisma.shipmentRequest.findUnique({ where: { id }, include: { products: { orderBy: { createdAt: "asc" } } } });
 }
 
+function appendEmailSentToken(current: string | null | undefined, token: string) {
+  const tokens = new Set((current ?? "").split(",").map((value) => value.trim()).filter(Boolean));
+  tokens.add(token);
+  return [...tokens].join(", ");
+}
+
 export async function sendShipmentRequestMailAction(formData: FormData) {
   const user = await requireUser();
   const id = formString(formData, "id");
@@ -834,7 +840,7 @@ export async function sendShipmentRequestMailAction(formData: FormData) {
   if (type === "new" && result.sent > 0) {
     await prisma.shipmentRequest.update({
       where: { id },
-      data: { status: ShipmentStatus.SCHEDULE, emailSent: "SHIPMENT_REQUEST_SENT", updatedById: user.id }
+      data: { status: ShipmentStatus.SCHEDULE, emailSent: appendEmailSentToken(shipment.emailSent, "SHIPMENT_REQUEST_SENT"), updatedById: user.id }
     });
   }
   emailRedirect(`/shipments/${id}`, result);
@@ -861,7 +867,14 @@ export async function sendShipmentScheduleMailAction(formData: FormData) {
     "",
     `${appUrl()}/shipments/${shipment.id}`
   ].join("\n");
-  emailRedirect(`/shipments/${id}`, await sendProgramEmail({ to: recipients, subject, body, createdById: user.id }));
+  const result = await sendProgramEmail({ to: recipients, subject, body, createdById: user.id });
+  if (type === "new" && result.sent > 0) {
+    await prisma.shipmentRequest.update({
+      where: { id },
+      data: { emailSent: appendEmailSentToken(shipment.emailSent, "SCHEDULE_MAIL_SENT"), updatedById: user.id }
+    });
+  }
+  emailRedirect(`/shipments/${id}`, result);
 }
 
 export async function sendShipmentQuoteMailAction(formData: FormData) {

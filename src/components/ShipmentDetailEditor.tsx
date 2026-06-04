@@ -2,7 +2,7 @@
 
 import { Factory, ShipmentStatus } from "@prisma/client";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { DeleteButton } from "@/components/DeleteButton";
 import { SearchableCombobox } from "@/components/SearchableCombobox";
@@ -124,6 +124,13 @@ export function ShipmentDetailEditor({
   const productAction = editingProduct ? updateProductAction : createProductAction;
   const summary = useMemo(() => shipmentSummary(shipment), [shipment]);
   const [statusValue, setStatusValue] = useState<ShipmentStatus>(shipment.status);
+  const formRef = useRef<HTMLFormElement>(null);
+  const shipmentRequestDefault = shipment.emailSent?.includes("SHIPMENT_REQUEST_SENT") ? "update" : "new";
+  const scheduleMailDefault = shipment.emailSent?.includes("SCHEDULE_MAIL_SENT") ? "change" : "new";
+
+  function autoSave() {
+    window.setTimeout(() => formRef.current?.requestSubmit(), 0);
+  }
 
   function editProduct(product: ProductRow) {
     setEditingProduct(product);
@@ -137,8 +144,9 @@ export function ShipmentDetailEditor({
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <form action={updateShipmentAction} className="space-y-6">
+      <form ref={formRef} action={updateShipmentAction} className="space-y-6">
         <input type="hidden" name="id" value={shipment.id} />
+        <input type="hidden" name="emailSent" value={shipment.emailSent ?? ""} />
         <input type="hidden" name="currency" value={shipment.currency ?? "USD"} />
         <input type="hidden" name="buyer" value={shipment.buyer ?? ""} />
         <input type="hidden" name="exportCountry" value={shipment.exportCountry ?? ""} />
@@ -177,7 +185,7 @@ export function ShipmentDetailEditor({
             <div className="flex items-end justify-between gap-3">
               <div className="flex items-end gap-2">
                 <Field label="선적 요청" compact>
-                  <select name="shipmentRequestType" defaultValue={shipment.emailSent?.includes("SHIPMENT_REQUEST_SENT") ? "update" : "new"} className="h-10 w-44">
+                  <select name="shipmentRequestType" defaultValue={shipmentRequestDefault} className="h-10 w-44">
                     <option value="new">신규 요청</option>
                     <option value="update">수정 요청</option>
                   </select>
@@ -192,16 +200,16 @@ export function ShipmentDetailEditor({
                 <ReadonlyBox label="바이어" value={shipment.buyer} />
               </FormRow>
               <FormRow>
-                <SelectBox label="운송" name="transport" value={shipment.transport} options={options.transport} />
-                <SelectBox label="인코텀즈" name="incoterms" value={shipment.incoterms} options={options.incoterms} />
+                <SelectBox label="운송" name="transport" value={shipment.transport} options={options.transport} onAutoSave={autoSave} />
+                <SelectBox label="인코텀즈" name="incoterms" value={shipment.incoterms} options={options.incoterms} onAutoSave={autoSave} />
               </FormRow>
               <FormRow>
-                <SelectBox label="목적항" name="destinationPort" value={shipment.destinationPort} options={options.destinationPort} />
-                <SelectBox label="보관조건" name="storageCondition" value={shipment.storageCondition} options={options.storageCondition} />
+                <SelectBox label="목적항" name="destinationPort" value={shipment.destinationPort} options={options.destinationPort} onAutoSave={autoSave} />
+                <SelectBox label="보관조건" name="storageCondition" value={shipment.storageCondition} options={options.storageCondition} onAutoSave={autoSave} />
               </FormRow>
               <FormRow columns={3}>
-                <SelectBox label="결제조건" name="paymentTerm" value={shipment.paymentTerm} options={options.paymentTerm} />
-                <ComboBox label="입금상황" name="depositStatus" value={shipment.depositStatus} options={options.depositStatus} />
+                <SelectBox label="결제조건" name="paymentTerm" value={shipment.paymentTerm} options={options.paymentTerm} onAutoSave={autoSave} />
+                <ComboBox label="입금상황" name="depositStatus" value={shipment.depositStatus} options={options.depositStatus} onAutoSave={autoSave} />
                 <InputBox label="LC S/D" name="lcSd" value={shipment.lcSd} />
               </FormRow>
               <FormRow columns={3}>
@@ -217,7 +225,15 @@ export function ShipmentDetailEditor({
             <div className="flex items-end justify-between gap-3">
               <div className="flex items-end gap-2">
                 <Field label="상태" compact>
-                  <select name="status" value={statusValue} onChange={(event) => setStatusValue(event.target.value as ShipmentStatus)} className="h-10 w-44">
+                  <select
+                    name="status"
+                    value={statusValue}
+                    onChange={(event) => {
+                      setStatusValue(event.target.value as ShipmentStatus);
+                      autoSave();
+                    }}
+                    className="h-10 w-44"
+                  >
                     <option value="REQUEST_WAITING">의뢰대기</option>
                     <option value="SCHEDULE">1. 스케줄</option>
                     <option value="QUOTE">★견적</option>
@@ -226,7 +242,6 @@ export function ShipmentDetailEditor({
                     <option value="AFTERCARE">4. 사후관리</option>
                   </select>
                 </Field>
-                <button className="btn-primary h-10 px-5">상태 변경</button>
                 {statusValue === "QUOTE" ? (
                   <button formAction={sendShipmentQuoteMailAction} className="btn-primary h-10 px-5">
                     견적 요청 메일
@@ -235,7 +250,7 @@ export function ShipmentDetailEditor({
                 {statusValue === "SHIPPING_DOCS" ? (
                   <>
                     <Field label="스케줄 안내" compact>
-                      <select name="scheduleMailType" defaultValue="new" className="h-10 w-24">
+                      <select name="scheduleMailType" defaultValue={scheduleMailDefault} className="h-10 w-24">
                         <option value="new">신규</option>
                         <option value="change">변경</option>
                       </select>
@@ -252,17 +267,17 @@ export function ShipmentDetailEditor({
                 <ReadonlyBox label="전동 총CT" value={summary.jeondongCt || "-"} />
               </FormRow>
               <FormRow columns={3}>
-                <SelectBox label="포워딩" name="forwarder" value={shipment.forwarder} options={options.forwarder} />
-                <SelectBox label="출발항" name="departurePort" value={shipment.departurePort} options={options.departurePort} />
+                <SelectBox label="포워딩" name="forwarder" value={shipment.forwarder} options={options.forwarder} onAutoSave={autoSave} />
+                <SelectBox label="출발항" name="departurePort" value={shipment.departurePort} options={options.departurePort} onAutoSave={autoSave} />
                 <InputBox label="경유항/편명" name="transitFlight" value={shipment.transitFlight} />
               </FormRow>
               <FormRow>
                 <InputBox label="INV No." name="invNo" value={shipment.invNo} />
-                <InputBox label="출고일" name="releaseDate" type="date" value={shipment.releaseDate} />
+                <InputBox label="출고일" name="releaseDate" type="date" value={shipment.releaseDate} onAutoSave={autoSave} />
               </FormRow>
               <FormRow>
-                <InputBox label="ETD" name="etd" type="datetime-local" value={shipment.etd} />
-                <InputBox label="ETA" name="eta" type="datetime-local" value={shipment.eta} />
+                <InputBox label="ETD" name="etd" type="datetime-local" value={shipment.etd} onAutoSave={autoSave} />
+                <InputBox label="ETA" name="eta" type="datetime-local" value={shipment.eta} onAutoSave={autoSave} />
               </FormRow>
               <FormRow>
                 <ReadonlyBox label="INV Value" value={`${shipment.currency ?? "USD"}${formatNumber(shipment.invoiceValue)}`} />
@@ -363,10 +378,10 @@ function Field({ label, compact = false, children }: { label: ReactNode; compact
   );
 }
 
-function InputBox({ label, name, value, type = "text" }: { label: string; name: string; value?: string | null; type?: string }) {
+function InputBox({ label, name, value, type = "text", onAutoSave }: { label: string; name: string; value?: string | null; type?: string; onAutoSave?: () => void }) {
   return (
     <Field label={label}>
-      <input name={name} type={type} defaultValue={value ?? ""} className="h-11 w-full" />
+      <input name={name} type={type} defaultValue={value ?? ""} onChange={type === "date" || type === "datetime-local" ? onAutoSave : undefined} className="h-11 w-full" />
     </Field>
   );
 }
@@ -387,7 +402,7 @@ function ReadonlyBox({ label, value, name }: { label: string; value?: string | n
   );
 }
 
-function SelectBox({ label, name, value, options }: { label: string; name: string; value?: string | null; options: Option[] }) {
+function SelectBox({ label, name, value, options, onAutoSave }: { label: string; name: string; value?: string | null; options: Option[]; onAutoSave?: () => void }) {
   return (
     <Field label={label}>
       <SearchableCombobox
@@ -395,12 +410,13 @@ function SelectBox({ label, name, value, options }: { label: string; name: strin
         defaultValue={value ?? ""}
         placeholder="선택"
         options={options.map((option) => ({ id: option.id, value: option.label, label: option.label }))}
+        onCommit={onAutoSave}
       />
     </Field>
   );
 }
 
-function ComboBox({ label, name, value, options }: { label: string; name: string; value?: string | null; options: Option[] }) {
+function ComboBox({ label, name, value, options, onAutoSave }: { label: string; name: string; value?: string | null; options: Option[]; onAutoSave?: () => void }) {
   return (
     <Field label={label}>
       <SearchableCombobox
@@ -408,6 +424,7 @@ function ComboBox({ label, name, value, options }: { label: string; name: string
         defaultValue={value ?? ""}
         placeholder="선택"
         options={options.map((option) => ({ id: option.id, value: option.label, label: option.label }))}
+        onCommit={onAutoSave}
       />
     </Field>
   );

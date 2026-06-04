@@ -36,6 +36,7 @@ export function SearchableCombobox({
   placeholder = "선택",
   required = false,
   onChange,
+  onCommit,
   displayValue
 }: {
   name: string;
@@ -45,6 +46,7 @@ export function SearchableCombobox({
   placeholder?: string;
   required?: boolean;
   onChange?: (value: string) => void;
+  onCommit?: (value: string) => void;
   displayValue?: (value: string) => string;
 }) {
   const controlled = value !== undefined;
@@ -86,6 +88,7 @@ export function SearchableCombobox({
   function commit(nextValue: string) {
     if (!controlled) setInternalValue(nextValue);
     onChange?.(nextValue);
+    onCommit?.(nextValue);
     setInputValue(displayValue?.(nextValue) ?? nextValue);
     setOpen(false);
   }

@@ -184,8 +184,8 @@ function TTSection({
             <h2 className="text-base font-semibold">T/T 입금 등록</h2>
             <div className="flex gap-2">
               {editing ? <button className="btn" type="button" onClick={resetForm}>신규로 돌아가기</button> : null}
-              {editing ? <button className="btn" formAction={createPaymentTTAction}>수정</button> : null}
-              <button className="btn-primary" formAction={notifyPaymentTTAction}>입금통지</button>
+              <button className="btn" formAction={createPaymentTTAction}>저장</button>
+              <button className="btn-primary" formAction={notifyPaymentTTAction}>통지</button>
             </div>
           </div>
           <div className="mt-4 space-y-4">
@@ -317,7 +317,7 @@ function LCSection({
             <h2 className="text-base font-semibold">L/C 통지</h2>
             <div className="flex gap-2">
               {editing ? <button className="btn" type="button" onClick={resetForm}>신규로 돌아가기</button> : null}
-              {editing ? <button className="btn" formAction={createPaymentLCAction}>수정</button> : null}
+              <button className="btn" formAction={createPaymentLCAction}>저장</button>
               <button className="btn-primary" formAction={notifyPaymentLCAction}>통지</button>
             </div>
           </div>
