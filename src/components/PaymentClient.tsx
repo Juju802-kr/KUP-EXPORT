@@ -110,7 +110,8 @@ export function PaymentClient({
   banks,
   mode,
   attachments,
-  searchQuery
+  searchQuery,
+  pendingOnly
 }: {
   ttPayments: PaymentTTRow[];
   lcPayments: PaymentLCRow[];
@@ -121,6 +122,7 @@ export function PaymentClient({
   mode: "tt" | "lc";
   attachments: AttachmentRow[];
   searchQuery: string;
+  pendingOnly: boolean;
 }) {
   const searchParams = useSearchParams();
   const editId = searchParams.get("edit");
@@ -128,9 +130,9 @@ export function PaymentClient({
   const exportOwners = users.filter((user) => user.team === Team.OVERSEAS_SALES_SUPPORT);
 
   return mode === "tt" ? (
-    <TTSection payments={ttPayments} buyers={buyers} countries={countries} salesOwners={salesOwners} exportOwners={exportOwners} attachments={attachments} searchQuery={searchQuery} />
+    <TTSection payments={ttPayments} buyers={buyers} countries={countries} salesOwners={salesOwners} exportOwners={exportOwners} attachments={attachments} searchQuery={searchQuery} pendingOnly={pendingOnly} />
   ) : (
-    <LCSection payments={lcPayments} buyers={buyers} countries={countries} banks={banks} salesOwners={salesOwners} exportOwners={exportOwners} attachments={attachments} initialEditId={editId} searchQuery={searchQuery} />
+    <LCSection payments={lcPayments} buyers={buyers} countries={countries} banks={banks} salesOwners={salesOwners} exportOwners={exportOwners} attachments={attachments} initialEditId={editId} searchQuery={searchQuery} pendingOnly={pendingOnly} />
   );
 }
 
@@ -141,7 +143,8 @@ function TTSection({
   salesOwners,
   exportOwners,
   attachments,
-  searchQuery
+  searchQuery,
+  pendingOnly
 }: {
   payments: PaymentTTRow[];
   buyers: BuyerOption[];
@@ -150,6 +153,7 @@ function TTSection({
   exportOwners: UserOption[];
   attachments: AttachmentRow[];
   searchQuery: string;
+  pendingOnly: boolean;
 }) {
   const [editing, setEditing] = useState<PaymentTTRow | null>(null);
   const [formKey, setFormKey] = useState(0);
@@ -232,7 +236,7 @@ function TTSection({
 
       <section className="panel p-5">
         <h2 className="text-base font-semibold">T/T 입금 관리 목록</h2>
-        <PaymentSearchForm tab="tt" defaultValue={searchQuery} />
+        <PaymentSearchForm tab="tt" defaultValue={searchQuery} pendingOnly={pendingOnly} />
         <div className="mt-3 divide-y divide-slate-100">
           <div className="grid grid-cols-[120px_140px_130px_1fr_1fr_1fr_180px_auto] items-center gap-3 py-2 text-xs font-medium text-slate-500">
             <span>국가</span>
@@ -274,7 +278,8 @@ function LCSection({
   exportOwners,
   attachments,
   initialEditId,
-  searchQuery
+  searchQuery,
+  pendingOnly
 }: {
   payments: PaymentLCRow[];
   buyers: BuyerOption[];
@@ -285,6 +290,7 @@ function LCSection({
   attachments: AttachmentRow[];
   initialEditId: string | null;
   searchQuery: string;
+  pendingOnly: boolean;
 }) {
   const [editing, setEditing] = useState<PaymentLCRow | null>(() => payments.find((payment) => payment.id === initialEditId) ?? null);
   const [formKey, setFormKey] = useState(0);
@@ -317,7 +323,7 @@ function LCSection({
         <input type="hidden" name="id" value={current.id} />
         <section className="panel p-5">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-base font-semibold">L/C 통지</h2>
+            <h2 className="text-base font-semibold">L/C 통지 등록</h2>
             <div className="flex gap-2">
               {editing ? <button className="btn" type="button" onClick={resetForm}>신규로 돌아가기</button> : null}
               <button className="btn" formAction={createPaymentLCAction}>저장</button>
@@ -381,7 +387,7 @@ function LCSection({
 
       <section className="panel p-5">
         <h2 className="text-base font-semibold">L/C 통지 관리 목록</h2>
-        <PaymentSearchForm tab="lc" defaultValue={searchQuery} />
+        <PaymentSearchForm tab="lc" defaultValue={searchQuery} pendingOnly={pendingOnly} />
         <div className="mt-3 divide-y divide-slate-100">
           <div className="grid grid-cols-[110px_130px_130px_1fr_1fr_1fr_180px_auto] items-center gap-3 py-2 text-xs font-medium text-slate-500">
             <span>국가</span>
@@ -423,7 +429,7 @@ function Field({ label, className = "", children }: { label: string; className?:
   );
 }
 
-function PaymentSearchForm({ tab, defaultValue }: { tab: "tt" | "lc"; defaultValue: string }) {
+function PaymentSearchForm({ tab, defaultValue, pendingOnly }: { tab: "tt" | "lc"; defaultValue: string; pendingOnly: boolean }) {
   return (
     <form className="mt-4 flex items-end gap-3 rounded-md border border-slate-200 bg-slate-50 p-4">
       <input type="hidden" name="tab" value={tab} />
@@ -431,6 +437,17 @@ function PaymentSearchForm({ tab, defaultValue }: { tab: "tt" | "lc"; defaultVal
         <label>검색</label>
         <input name="q" defaultValue={defaultValue} placeholder="국가, 바이어, REF No., 생산의뢰번호, INV No., LC No." />
       </div>
+      <label className="mb-2 flex h-11 items-center gap-2 whitespace-nowrap text-sm font-medium text-slate-700">
+        <input
+          type="checkbox"
+          name="pending"
+          value="1"
+          defaultChecked={pendingOnly}
+          onChange={(event) => event.currentTarget.form?.requestSubmit()}
+          className="h-4 w-4"
+        />
+        확인대기
+      </label>
       <button className="btn h-11">검색</button>
     </form>
   );

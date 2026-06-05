@@ -8,20 +8,40 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   const params = await searchParams;
   const tab = params.tab === "lc" ? "lc" : "tt";
   const q = params.q?.trim();
+  const pendingOnly = params.pending === "1";
+  const ttWhere = {
+    AND: [
+      q ? { OR: [{ exportCountry: { contains: q } }, { buyer: { contains: q } }, { refNo: { contains: q } }, { productionRequestNo: { contains: q } }, { invNo: { contains: q } }] } : {},
+      pendingOnly
+        ? {
+            OR: [
+              { productionRequestNo: null },
+              { productionRequestNo: "" },
+              { invNo: null },
+              { invNo: "" },
+              { description: null },
+              { description: "" }
+            ]
+          }
+        : {}
+    ]
+  };
+  const lcWhere = {
+    AND: [
+      q ? { OR: [{ exportCountry: { contains: q } }, { buyer: { contains: q } }, { productionRequestNo: { contains: q } }, { lcNo: { contains: q } }] } : {},
+      pendingOnly ? { OR: [{ productionRequestNo: null }, { productionRequestNo: "" }] } : {}
+    ]
+  };
   const [ttPayments, lcPayments, buyers, users, countries, banks] = await Promise.all([
     tab === "tt"
       ? prisma.paymentTT.findMany({
-          where: q
-            ? { OR: [{ exportCountry: { contains: q } }, { buyer: { contains: q } }, { refNo: { contains: q } }, { productionRequestNo: { contains: q } }, { invNo: { contains: q } }] }
-            : {},
+          where: ttWhere,
           orderBy: { createdAt: "desc" }
         })
       : Promise.resolve([]),
     tab === "lc"
       ? prisma.paymentLC.findMany({
-          where: q
-            ? { OR: [{ exportCountry: { contains: q } }, { buyer: { contains: q } }, { productionRequestNo: { contains: q } }, { lcNo: { contains: q } }] }
-            : {},
+          where: lcWhere,
           orderBy: { createdAt: "desc" }
         })
       : Promise.resolve([]),
@@ -74,6 +94,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
       <PaymentClient
         mode={tab}
         searchQuery={q ?? ""}
+        pendingOnly={pendingOnly}
         ttPayments={ttPayments.map((payment) => ({
           id: payment.id,
           exportCountry: payment.exportCountry,
