@@ -9,9 +9,23 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   const tab = params.tab === "lc" ? "lc" : "tt";
   const q = params.q?.trim();
   const pendingOnly = params.pending === "1";
+  const qAmount = q ? Number(q.replaceAll(",", "")) : NaN;
+  const amountFilter = Number.isFinite(qAmount) ? [{ amount: qAmount }] : [];
   const ttWhere = {
     AND: [
-      q ? { OR: [{ exportCountry: { contains: q } }, { buyer: { contains: q } }, { refNo: { contains: q } }, { productionRequestNo: { contains: q } }, { invNo: { contains: q } }] } : {},
+      q
+        ? {
+            OR: [
+              { salesOwner: { contains: q } },
+              { exportCountry: { contains: q } },
+              { buyer: { contains: q } },
+              ...amountFilter,
+              { productionRequestNo: { contains: q } },
+              { invNo: { contains: q } },
+              { refNo: { contains: q } }
+            ]
+          }
+        : {},
       pendingOnly
         ? {
             OR: [
@@ -28,7 +42,19 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   };
   const lcWhere = {
     AND: [
-      q ? { OR: [{ exportCountry: { contains: q } }, { buyer: { contains: q } }, { productionRequestNo: { contains: q } }, { lcNo: { contains: q } }] } : {},
+      q
+        ? {
+            OR: [
+              { salesOwner: { contains: q } },
+              { exportCountry: { contains: q } },
+              { buyer: { contains: q } },
+              ...amountFilter,
+              { productionRequestNo: { contains: q } },
+              { lcNo: { contains: q } },
+              { lcSd: { contains: q } }
+            ]
+          }
+        : {},
       pendingOnly ? { OR: [{ productionRequestNo: null }, { productionRequestNo: "" }] } : {}
     ]
   };

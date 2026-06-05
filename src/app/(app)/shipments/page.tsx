@@ -32,9 +32,11 @@ export default async function ShipmentsPage({ searchParams }: { searchParams: Pr
                 { salesOwner: { contains: q } },
                 { contactPerson: { contains: q } },
                 { invNo: { contains: q } },
+                { productionRequestNo: { contains: q } },
                 { products: { some: { productName: { contains: q } } } },
                 { products: { some: { englishName: { contains: q } } } },
-                { products: { some: { piNo: { contains: q } } } }
+                { products: { some: { piNo: { contains: q } } } },
+                { products: { some: { productionRequestNo: { contains: q } } } }
               ]
             }
           : {})
@@ -162,7 +164,7 @@ export default async function ShipmentsPage({ searchParams }: { searchParams: Pr
           <input type="hidden" name="view" value={view} />
           <div className="field min-w-96">
             <label>검색</label>
-            <input name="q" defaultValue={q ?? ""} placeholder="수출국, 바이어, 제품명, PI No., INV No." />
+            <input name="q" defaultValue={q ?? ""} placeholder="수출국, 바이어, 제품명, PI No., INV No., 생산의뢰번호" />
           </div>
           <div className="field">
             <label>상태</label>

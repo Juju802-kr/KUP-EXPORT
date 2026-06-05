@@ -238,19 +238,17 @@ function TTSection({
         <h2 className="text-base font-semibold">T/T 입금 관리 목록</h2>
         <PaymentSearchForm tab="tt" defaultValue={searchQuery} pendingOnly={pendingOnly} />
         <div className="mt-3 divide-y divide-slate-100">
-          <div className="grid grid-cols-[110px_120px_140px_130px_1fr_1fr_1fr_180px_auto] items-center gap-3 py-2 text-xs font-medium text-slate-500">
+          <div className="grid grid-cols-[110px_120px_140px_130px_1fr_1fr_auto] items-center gap-3 py-2 text-xs font-medium text-slate-500">
             <span>영업담당자</span>
             <span>국가</span>
             <span>바이어</span>
             <span>금액</span>
             <span>생산의뢰번호</span>
             <span>INV No.</span>
-            <span>설명</span>
-            <span>첨부파일</span>
             <span />
           </div>
           {payments.map((payment) => (
-            <div key={payment.id} className="grid grid-cols-[110px_120px_140px_130px_1fr_1fr_1fr_180px_auto] items-center gap-3 py-3 text-sm">
+            <div key={payment.id} className="grid grid-cols-[110px_120px_140px_130px_1fr_1fr_auto] items-center gap-3 py-3 text-sm">
               <RowButton onClick={() => startEdit(payment)}>{payment.salesOwner || "-"}</RowButton>
               <RowButton onClick={() => startEdit(payment)}>{payment.exportCountry || "-"}</RowButton>
               <RowButton onClick={() => startEdit(payment)}>{payment.buyer || "-"}</RowButton>
@@ -259,8 +257,6 @@ function TTSection({
               </button>
               <RowButton onClick={() => startEdit(payment)}>{payment.productionRequestNo || "-"}</RowButton>
               <RowButton onClick={() => startEdit(payment)}>{payment.invNo || "-"}</RowButton>
-              <RowButton onClick={() => startEdit(payment)} muted>{payment.description || "-"}</RowButton>
-              <AttachmentLinks files={attachments.filter((file) => file.ownerId === payment.id)} />
               <DeletePaymentForm id={payment.id} type="tt" />
             </div>
           ))}
@@ -391,19 +387,18 @@ function LCSection({
         <h2 className="text-base font-semibold">L/C 통지 관리 목록</h2>
         <PaymentSearchForm tab="lc" defaultValue={searchQuery} pendingOnly={pendingOnly} />
         <div className="mt-3 divide-y divide-slate-100">
-          <div className="grid grid-cols-[110px_110px_130px_130px_1fr_1fr_1fr_180px_auto] items-center gap-3 py-2 text-xs font-medium text-slate-500">
+          <div className="grid grid-cols-[110px_110px_130px_130px_1fr_1fr_1fr_auto] items-center gap-3 py-2 text-xs font-medium text-slate-500">
             <span>영업담당자</span>
             <span>국가</span>
             <span>바이어</span>
             <span>금액</span>
-            <span>수주등록번호</span>
+            <span>생산의뢰번호</span>
             <span>LC No.</span>
             <span>LC S/D</span>
-            <span>첨부파일</span>
             <span />
           </div>
           {payments.map((payment) => (
-            <div key={payment.id} className="grid grid-cols-[110px_110px_130px_130px_1fr_1fr_1fr_180px_auto] items-center gap-3 py-3 text-sm">
+            <div key={payment.id} className="grid grid-cols-[110px_110px_130px_130px_1fr_1fr_1fr_auto] items-center gap-3 py-3 text-sm">
               <RowButton onClick={() => startEdit(payment)}>{payment.salesOwner || "-"}</RowButton>
               <RowButton onClick={() => startEdit(payment)}>{payment.exportCountry || "-"}</RowButton>
               <RowButton onClick={() => startEdit(payment)}>{payment.buyer || "-"}</RowButton>
@@ -413,7 +408,6 @@ function LCSection({
               <RowButton onClick={() => startEdit(payment)}>{payment.productionRequestNo || "-"}</RowButton>
               <RowButton onClick={() => startEdit(payment)}>{payment.lcNo || "-"}</RowButton>
               <RowButton onClick={() => startEdit(payment)} muted>{payment.lcSd || "-"}</RowButton>
-              <AttachmentLinks files={attachments.filter((file) => file.ownerId === payment.id)} />
               <DeletePaymentForm id={payment.id} type="lc" />
             </div>
           ))}
@@ -436,8 +430,8 @@ function Field({ label, className = "", children }: { label: string; className?:
 function PaymentSearchForm({ tab, defaultValue, pendingOnly }: { tab: "tt" | "lc"; defaultValue: string; pendingOnly: boolean }) {
   const placeholder =
     tab === "tt"
-      ? "국가, 바이어, REF No., 생산의뢰번호, INV No."
-      : "국가, 바이어, 생산의뢰번호, LC No.";
+      ? "영업담당자, 국가, 바이어, 금액, 생산의뢰번호, INV No."
+      : "영업담당자, 국가, 바이어, 금액, 생산의뢰번호, LC No., LC S/D";
 
   return (
     <form className="mt-4 flex items-end gap-3 rounded-md border border-slate-200 bg-slate-50 p-4">
