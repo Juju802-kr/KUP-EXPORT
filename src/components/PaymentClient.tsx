@@ -307,7 +307,6 @@ function LCSection({
 
   const autoSalesOwner = selectedBuyer?.salesOwner ?? current.salesOwner ?? "";
   const autoExportOwner = selectedBuyer?.exportOwner ?? current.exportOwner ?? "";
-  const autoDepositOwner = current.depositOwner ?? "이해원";
   const autoSalesRecipients = selectedBuyer?.salesEmailRecipients ?? current.salesEmailRecipients ?? "";
   const autoCurrency = selectedBuyer?.defaultCurrency ?? current.currency ?? "USD";
   const countryOptions = [...new Set([...countries, ...buyers.map((buyer) => buyer.exportCountry)].filter(Boolean))];

@@ -20,11 +20,13 @@ function safeStoredName(fileName: string) {
 }
 
 export async function saveAttachments(files: File[], ownerType: AttachmentOwnerType, ownerId: string, userId: string) {
+  const uploadableFiles = files.filter((file) => file && file.size > 0);
+  if (!uploadableFiles.length) return;
+
   const storage = storageClient();
   if (!storage) await mkdir(uploadDir, { recursive: true });
 
-  for (const file of files) {
-    if (!file || file.size === 0) continue;
+  for (const file of uploadableFiles) {
     const bytes = Buffer.from(await file.arrayBuffer());
     const storedName = safeStoredName(file.name);
 

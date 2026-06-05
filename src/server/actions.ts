@@ -169,7 +169,6 @@ export async function updateShipmentAction(formData: FormData) {
   const id = formString(formData, "id");
   await prisma.shipmentRequest.update({ where: { id }, data: { ...readShipmentForm(formData), updatedById: user.id } });
   await saveAttachments(formData.getAll("files").filter((f): f is File => f instanceof File), "SHIPMENT", id, user.id);
-  await recalcShipmentInvoice(id);
   revalidatePath(`/shipments/${id}`);
   redirect(`/shipments/${id}`);
 }

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
+export const preferredRegion = "icn1";
+
 export const metadata: Metadata = {
   title: "Shipping Agent",
   description: "Internal shipping workflow MVP"

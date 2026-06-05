@@ -42,7 +42,7 @@ export default async function ShipmentsPage({ searchParams }: { searchParams: Pr
       include: { products: true },
       orderBy: [{ sortOrder: "asc" }, { updatedAt: "desc" }]
     }),
-    prisma.dataLogger.findMany({ orderBy: { createdAt: "desc" } }),
+    view === "datalogger" ? prisma.dataLogger.findMany({ orderBy: { createdAt: "desc" } }) : Promise.resolve([]),
     prisma.user.findMany({ select: { name: true, team: true }, orderBy: { name: "asc" } })
   ]);
 

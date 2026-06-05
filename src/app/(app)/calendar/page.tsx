@@ -88,21 +88,37 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const first = new Date(year, month - 1, 1);
   const start = new Date(year, month - 1, 1 - first.getDay());
   const days = Array.from({ length: 42 }, (_, i) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + i));
+  const end = new Date(days[days.length - 1].getFullYear(), days[days.length - 1].getMonth(), days[days.length - 1].getDate() + 1);
 
   const [shipments, notices] = await Promise.all([
-    prisma.shipmentRequest.findMany({
-      where: filterName && mode === "owner"
-        ? {
-            OR: [
-              { salesOwner: { contains: filterName } },
-              { exportOwner: { contains: filterName } },
-              { contactPerson: { contains: filterName } }
+    mode === "notice"
+      ? Promise.resolve([])
+      : prisma.shipmentRequest.findMany({
+          where: {
+            AND: [
+              {
+                OR: [
+                  { releaseDate: { gte: start, lt: end } },
+                  { etd: { gte: start, lt: end } },
+                  { eta: { gte: start, lt: end } }
+                ]
+              },
+              filterName && mode === "owner"
+                ? {
+                    OR: [
+                      { salesOwner: { contains: filterName } },
+                      { exportOwner: { contains: filterName } },
+                      { contactPerson: { contains: filterName } }
+                    ]
+                  }
+                : {}
             ]
-          }
-        : {},
-      include: { products: true }
-    }),
-    prisma.notice.findMany({ where: { scheduleDate: { not: null } }, include: { recipientTeams: true }, orderBy: { scheduleDate: "asc" } })
+          },
+          include: { products: true }
+        }),
+    mode === "notice"
+      ? prisma.notice.findMany({ where: { scheduleDate: { gte: start, lt: end } }, include: { recipientTeams: true }, orderBy: { scheduleDate: "asc" } })
+      : Promise.resolve([])
   ]);
 
   const allEvents = mode === "notice" ? noticeEvents(notices) : shipmentEvents(shipments, mode);

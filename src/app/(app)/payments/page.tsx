@@ -9,18 +9,22 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   const tab = params.tab === "lc" ? "lc" : "tt";
   const q = params.q?.trim();
   const [ttPayments, lcPayments, buyers, users, countries, banks] = await Promise.all([
-    prisma.paymentTT.findMany({
-      where: q
-        ? { OR: [{ exportCountry: { contains: q } }, { buyer: { contains: q } }, { refNo: { contains: q } }, { productionRequestNo: { contains: q } }, { invNo: { contains: q } }] }
-        : {},
-      orderBy: { createdAt: "desc" }
-    }),
-    prisma.paymentLC.findMany({
-      where: q
-        ? { OR: [{ exportCountry: { contains: q } }, { buyer: { contains: q } }, { productionRequestNo: { contains: q } }, { lcNo: { contains: q } }] }
-        : {},
-      orderBy: { createdAt: "desc" }
-    }),
+    tab === "tt"
+      ? prisma.paymentTT.findMany({
+          where: q
+            ? { OR: [{ exportCountry: { contains: q } }, { buyer: { contains: q } }, { refNo: { contains: q } }, { productionRequestNo: { contains: q } }, { invNo: { contains: q } }] }
+            : {},
+          orderBy: { createdAt: "desc" }
+        })
+      : Promise.resolve([]),
+    tab === "lc"
+      ? prisma.paymentLC.findMany({
+          where: q
+            ? { OR: [{ exportCountry: { contains: q } }, { buyer: { contains: q } }, { productionRequestNo: { contains: q } }, { lcNo: { contains: q } }] }
+            : {},
+          orderBy: { createdAt: "desc" }
+        })
+      : Promise.resolve([]),
     prisma.buyerMaster.findMany({ orderBy: [{ exportCountry: "asc" }, { buyerName: "asc" }] }),
     prisma.user.findMany({
       where: { team: { in: [Team.OVERSEAS_MARKETING, Team.OVERSEAS_SALES, Team.OVERSEAS_SALES_SUPPORT] } },
@@ -32,11 +36,13 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
       orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
       select: { label: true }
     }),
-    prisma.dropdownOption.findMany({
-      where: { category: DropdownCategory.BANK },
-      orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
-      select: { label: true }
-    })
+    tab === "lc"
+      ? prisma.dropdownOption.findMany({
+          where: { category: DropdownCategory.BANK },
+          orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+          select: { label: true }
+        })
+      : Promise.resolve([])
   ]);
   const paymentIds = [...ttPayments.map((payment) => payment.id), ...lcPayments.map((payment) => payment.id)];
   const attachments = paymentIds.length

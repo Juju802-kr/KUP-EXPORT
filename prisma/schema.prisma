@@ -180,6 +180,13 @@ model ShipmentRequest {
 
   products ShipmentProduct[]
   lcLinks  LcShipmentLink[]
+
+  @@index([status])
+  @@index([salesOwner])
+  @@index([exportOwner])
+  @@index([releaseDate])
+  @@index([etd])
+  @@index([eta])
 }
 
 model ShipmentProduct {
@@ -234,6 +241,10 @@ model PaymentTT {
   updatedAt             DateTime @updatedAt
   createdById           String
   updatedById           String
+
+  @@index([date])
+  @@index([salesOwner])
+  @@index([exportOwner])
 }
 
 model PaymentLC {
@@ -262,6 +273,11 @@ model PaymentLC {
   updatedById           String
 
   shipmentLinks LcShipmentLink[]
+
+  @@index([noticeDate])
+  @@index([productionRequestNo])
+  @@index([salesOwner])
+  @@index([exportOwner])
 }
 
 model LcShipmentLink {
@@ -292,6 +308,8 @@ model Notice {
   updatedById String
 
   recipientTeams NoticeRecipientTeam[]
+
+  @@index([scheduleDate])
 }
 
 model NoticeRecipientTeam {
