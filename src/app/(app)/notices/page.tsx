@@ -6,7 +6,21 @@ import { fmtDate, fmtDateTimeLocal } from "@/lib/constants";
 import { prisma } from "@/lib/prisma";
 import { deleteNoticeAction } from "@/server/actions";
 
-const noticeListLimit = 200;
+const initialNoticeLimit = 5;
+const noticeLimitStep = 10;
+
+function parseNoticeLimit(value?: string) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < initialNoticeLimit) return initialNoticeLimit;
+  return Math.min(Math.floor(parsed), 500);
+}
+
+function noticeMoreHref(params: Record<string, string | undefined>, nextLimit: number) {
+  const next = new URLSearchParams();
+  if (params.q) next.set("q", params.q);
+  next.set("limit", String(nextLimit));
+  return `/notices?${next.toString()}`;
+}
 
 const noticeTypeLabels: Record<NoticeType, string> = {
   GENERAL: "일반",
@@ -58,17 +72,31 @@ export default async function NoticesPage({ searchParams }: { searchParams: Prom
   const q = params.q?.trim();
   const editId = params.edit?.trim();
   const cancelId = params.cancel?.trim();
+  const listLimit = parseNoticeLimit(params.limit);
   const notices = await prisma.notice.findMany({
     where: q
       ? { OR: [{ title: { contains: q } }, { content: { contains: q } }, { cancelReason: { contains: q } }, { recipientTeams: { some: { team: { contains: q } } } }] }
       : {},
     include: { recipientTeams: true },
     orderBy: [{ important: "desc" }, { createdAt: "desc" }],
-    take: noticeListLimit
+    take: listLimit + 1
   });
-  const noticeAttachments = notices.length
+  const hasMore = notices.length > listLimit;
+  const selectedNoticeId = editId || cancelId;
+  const selectedNotice =
+    selectedNoticeId && !notices.some((notice) => notice.id === selectedNoticeId)
+      ? await prisma.notice.findUnique({
+          where: { id: selectedNoticeId },
+          include: { recipientTeams: true }
+        })
+      : null;
+  const visibleNotices = [
+    ...(selectedNotice ? [selectedNotice] : []),
+    ...notices.slice(0, listLimit).filter((notice) => notice.id !== selectedNotice?.id)
+  ];
+  const noticeAttachments = visibleNotices.length
     ? await prisma.attachment.findMany({
-        where: { ownerType: AttachmentOwnerType.NOTICE, ownerId: { in: notices.map((notice) => notice.id) } },
+        where: { ownerType: AttachmentOwnerType.NOTICE, ownerId: { in: visibleNotices.map((notice) => notice.id) } },
         orderBy: { createdAt: "desc" }
       })
     : [];
@@ -80,7 +108,7 @@ export default async function NoticesPage({ searchParams }: { searchParams: Prom
       <NoticeEditor
         editId={editId}
         cancelId={cancelId}
-        notices={notices.map((notice) => ({
+        notices={visibleNotices.map((notice) => ({
           id: notice.id,
           title: notice.title,
           content: notice.content,
@@ -103,7 +131,7 @@ export default async function NoticesPage({ searchParams }: { searchParams: Prom
           </div>
           <button className="btn">검색</button>
         </form>
-        {notices.map((notice) => (
+        {visibleNotices.map((notice) => (
           <article id={notice.id} key={notice.id} className="panel p-5">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -136,12 +164,19 @@ export default async function NoticesPage({ searchParams }: { searchParams: Prom
             </div>
           </article>
         ))}
+        {hasMore ? (
+          <div className="flex justify-center">
+            <a className="btn h-11 px-6" href={noticeMoreHref(params, listLimit + noticeLimitStep)}>
+              더보기
+            </a>
+          </div>
+        ) : null}
       </section>
 
       <section className="panel p-5">
         <h2 className="text-base font-semibold">공지로그</h2>
         <div className="mt-3 divide-y divide-slate-100">
-          {notices.map((notice) => (
+          {visibleNotices.map((notice) => (
             <div key={notice.id} className="py-2 text-sm">
               <span className="font-medium text-slate-700">{fmtShortDate(notice.scheduleDate) || "-"}</span>
               <span className="ml-3 text-slate-900">{notice.title}</span>

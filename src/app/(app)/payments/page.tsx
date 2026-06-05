@@ -4,13 +4,69 @@ import { PaymentClient } from "@/components/PaymentClient";
 import { fmtDate } from "@/lib/constants";
 import { prisma } from "@/lib/prisma";
 
-const paymentListLimit = 300;
+const initialListLimit = 5;
+const listLimitStep = 10;
+
+function parseListLimit(value?: string) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < initialListLimit) return initialListLimit;
+  return Math.min(Math.floor(parsed), 500);
+}
+
+function paymentMoreHref(params: Record<string, string | undefined>, nextLimit: number) {
+  const next = new URLSearchParams();
+  next.set("tab", params.tab === "lc" ? "lc" : "tt");
+  if (params.q) next.set("q", params.q);
+  if (params.pending === "1") next.set("pending", "1");
+  next.set("limit", String(nextLimit));
+  return `/payments?${next.toString()}`;
+}
+
+const ttPaymentSelect = {
+  id: true,
+  exportCountry: true,
+  buyer: true,
+  amount: true,
+  currency: true,
+  date: true,
+  refNo: true,
+  salesOwner: true,
+  exportOwner: true,
+  depositOwner: true,
+  salesEmailRecipients: true,
+  productionRequestNo: true,
+  invNo: true,
+  description: true,
+  note: true
+};
+
+const lcPaymentSelect = {
+  id: true,
+  kind: true,
+  bank: true,
+  exportCountry: true,
+  buyer: true,
+  amount: true,
+  currency: true,
+  lcSd: true,
+  noticeDate: true,
+  lcNo: true,
+  productionRequestNo: true,
+  salesOwner: true,
+  exportOwner: true,
+  depositOwner: true,
+  salesEmailRecipients: true,
+  form: true,
+  note: true
+};
 
 export default async function PaymentsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const params = await searchParams;
   const tab = params.tab === "lc" ? "lc" : "tt";
   const q = params.q?.trim();
+  const editId = params.edit?.trim();
   const pendingOnly = params.pending === "1";
+  const listLimit = parseListLimit(params.limit);
   const qAmount = q ? Number(q.replaceAll(",", "")) : NaN;
   const amountFilter = Number.isFinite(qAmount) ? [{ amount: qAmount }] : [];
   const ttWhere = {
@@ -65,50 +121,16 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
       ? prisma.paymentTT.findMany({
           where: ttWhere,
           orderBy: { createdAt: "desc" },
-          take: paymentListLimit,
-          select: {
-            id: true,
-            exportCountry: true,
-            buyer: true,
-            amount: true,
-            currency: true,
-            date: true,
-            refNo: true,
-            salesOwner: true,
-            exportOwner: true,
-            depositOwner: true,
-            salesEmailRecipients: true,
-            productionRequestNo: true,
-            invNo: true,
-            description: true,
-            note: true
-          }
+          take: listLimit + 1,
+          select: ttPaymentSelect
         })
       : Promise.resolve([]),
     tab === "lc"
       ? prisma.paymentLC.findMany({
           where: lcWhere,
           orderBy: { createdAt: "desc" },
-          take: paymentListLimit,
-          select: {
-            id: true,
-            kind: true,
-            bank: true,
-            exportCountry: true,
-            buyer: true,
-            amount: true,
-            currency: true,
-            lcSd: true,
-            noticeDate: true,
-            lcNo: true,
-            productionRequestNo: true,
-            salesOwner: true,
-            exportOwner: true,
-            depositOwner: true,
-            salesEmailRecipients: true,
-            form: true,
-            note: true
-          }
+          take: listLimit + 1,
+          select: lcPaymentSelect
         })
       : Promise.resolve([]),
     prisma.buyerMaster.findMany({ orderBy: [{ exportCountry: "asc" }, { buyerName: "asc" }] }),
@@ -130,7 +152,24 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
         })
       : Promise.resolve([])
   ]);
-  const paymentIds = [...ttPayments.map((payment) => payment.id), ...lcPayments.map((payment) => payment.id)];
+  const hasMore = tab === "tt" ? ttPayments.length > listLimit : lcPayments.length > listLimit;
+  const selectedTtPayment =
+    tab === "tt" && editId && !ttPayments.some((payment) => payment.id === editId)
+      ? await prisma.paymentTT.findUnique({ where: { id: editId }, select: ttPaymentSelect })
+      : null;
+  const selectedLcPayment =
+    tab === "lc" && editId && !lcPayments.some((payment) => payment.id === editId)
+      ? await prisma.paymentLC.findUnique({ where: { id: editId }, select: lcPaymentSelect })
+      : null;
+  const visibleTtPayments = [
+    ...(selectedTtPayment ? [selectedTtPayment] : []),
+    ...ttPayments.slice(0, listLimit).filter((payment) => payment.id !== selectedTtPayment?.id)
+  ];
+  const visibleLcPayments = [
+    ...(selectedLcPayment ? [selectedLcPayment] : []),
+    ...lcPayments.slice(0, listLimit).filter((payment) => payment.id !== selectedLcPayment?.id)
+  ];
+  const paymentIds = [...visibleTtPayments.map((payment) => payment.id), ...visibleLcPayments.map((payment) => payment.id)];
   const attachments = paymentIds.length
     ? await prisma.attachment.findMany({
         where: {
@@ -161,7 +200,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
         mode={tab}
         searchQuery={q ?? ""}
         pendingOnly={pendingOnly}
-        ttPayments={ttPayments.map((payment) => ({
+        ttPayments={visibleTtPayments.map((payment) => ({
           id: payment.id,
           exportCountry: payment.exportCountry,
           buyer: payment.buyer,
@@ -178,7 +217,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
           description: payment.description,
           note: payment.note
         }))}
-        lcPayments={lcPayments.map((payment) => ({
+        lcPayments={visibleLcPayments.map((payment) => ({
           id: payment.id,
           kind: payment.kind,
           bank: payment.bank,
@@ -217,10 +256,17 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
           mimeType: file.mimeType
         }))}
       />
+      {hasMore ? (
+        <div className="flex justify-center">
+          <a className="btn h-11 px-6" href={paymentMoreHref(params, listLimit + listLimitStep)}>
+            더보기
+          </a>
+        </div>
+      ) : null}
       <FloatingExportButton
         kind={tab === "lc" ? "lc" : "tt"}
         paymentOptions={{
-          rows: (tab === "lc" ? lcPayments : ttPayments).map((payment) => ({
+          rows: (tab === "lc" ? visibleLcPayments : visibleTtPayments).map((payment) => ({
             date: fmtDate(tab === "lc" ? "noticeDate" in payment ? payment.noticeDate : null : "date" in payment ? payment.date : null),
             country: payment.exportCountry,
             buyer: payment.buyer,

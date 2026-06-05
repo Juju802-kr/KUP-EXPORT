@@ -130,7 +130,7 @@ export function PaymentClient({
   const exportOwners = users.filter((user) => user.team === Team.OVERSEAS_SALES_SUPPORT);
 
   return mode === "tt" ? (
-    <TTSection payments={ttPayments} buyers={buyers} countries={countries} salesOwners={salesOwners} exportOwners={exportOwners} attachments={attachments} searchQuery={searchQuery} pendingOnly={pendingOnly} />
+    <TTSection payments={ttPayments} buyers={buyers} countries={countries} salesOwners={salesOwners} exportOwners={exportOwners} attachments={attachments} initialEditId={editId} searchQuery={searchQuery} pendingOnly={pendingOnly} />
   ) : (
     <LCSection payments={lcPayments} buyers={buyers} countries={countries} banks={banks} salesOwners={salesOwners} exportOwners={exportOwners} attachments={attachments} initialEditId={editId} searchQuery={searchQuery} pendingOnly={pendingOnly} />
   );
@@ -143,6 +143,7 @@ function TTSection({
   salesOwners,
   exportOwners,
   attachments,
+  initialEditId,
   searchQuery,
   pendingOnly
 }: {
@@ -152,12 +153,13 @@ function TTSection({
   salesOwners: UserOption[];
   exportOwners: UserOption[];
   attachments: AttachmentRow[];
+  initialEditId: string | null;
   searchQuery: string;
   pendingOnly: boolean;
 }) {
-  const [editing, setEditing] = useState<PaymentTTRow | null>(null);
+  const [editing, setEditing] = useState<PaymentTTRow | null>(() => payments.find((payment) => payment.id === initialEditId) ?? null);
   const [formKey, setFormKey] = useState(0);
-  const [buyerName, setBuyerName] = useState("");
+  const [buyerName, setBuyerName] = useState(() => payments.find((payment) => payment.id === initialEditId)?.buyer ?? "");
   const current = editing ?? emptyTT;
   const selectedBuyer = useMemo(() => buyers.find((buyer) => buyer.buyerName === buyerName), [buyers, buyerName]);
   const currentAttachments = attachments.filter((file) => file.ownerId === current.id);
