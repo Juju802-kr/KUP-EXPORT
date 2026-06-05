@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { randomBytes } from "crypto";
+import { cache } from "react";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 
@@ -31,7 +32,7 @@ export async function createSession(userId: string, remember = false) {
   });
 }
 
-export async function getCurrentUser() {
+export const getCurrentUser = cache(async function getCurrentUser() {
   const jar = await cookies();
   const token = jar.get(sessionCookieName)?.value;
   if (!token) return null;
@@ -41,7 +42,7 @@ export async function getCurrentUser() {
   });
   if (!session || session.expiresAt < new Date()) return null;
   return session.user;
-}
+});
 
 export async function requireUser() {
   const user = await getCurrentUser();

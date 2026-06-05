@@ -41,7 +41,27 @@ export default async function ShipmentsPage({ searchParams }: { searchParams: Pr
             }
           : {})
       },
-      include: { products: true },
+      select: {
+        id: true,
+        exportCountry: true,
+        buyer: true,
+        currency: true,
+        invNo: true,
+        invoiceValue: true,
+        salesOwner: true,
+        exportOwner: true,
+        status: true,
+        etd: true,
+        updatedAt: true,
+        products: {
+          select: {
+            productName: true,
+            englishName: true,
+            piNo: true,
+            factory: true
+          }
+        }
+      },
       orderBy: [{ sortOrder: "asc" }, { updatedAt: "desc" }]
     }),
     view === "datalogger" ? prisma.dataLogger.findMany({ orderBy: { createdAt: "desc" } }) : Promise.resolve([]),

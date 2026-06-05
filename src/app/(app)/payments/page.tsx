@@ -62,13 +62,49 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
     tab === "tt"
       ? prisma.paymentTT.findMany({
           where: ttWhere,
-          orderBy: { createdAt: "desc" }
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            exportCountry: true,
+            buyer: true,
+            amount: true,
+            currency: true,
+            date: true,
+            refNo: true,
+            salesOwner: true,
+            exportOwner: true,
+            depositOwner: true,
+            salesEmailRecipients: true,
+            productionRequestNo: true,
+            invNo: true,
+            description: true,
+            note: true
+          }
         })
       : Promise.resolve([]),
     tab === "lc"
       ? prisma.paymentLC.findMany({
           where: lcWhere,
-          orderBy: { createdAt: "desc" }
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            kind: true,
+            bank: true,
+            exportCountry: true,
+            buyer: true,
+            amount: true,
+            currency: true,
+            lcSd: true,
+            noticeDate: true,
+            lcNo: true,
+            productionRequestNo: true,
+            salesOwner: true,
+            exportOwner: true,
+            depositOwner: true,
+            salesEmailRecipients: true,
+            form: true,
+            note: true
+          }
         })
       : Promise.resolve([]),
     prisma.buyerMaster.findMany({ orderBy: [{ exportCountry: "asc" }, { buyerName: "asc" }] }),

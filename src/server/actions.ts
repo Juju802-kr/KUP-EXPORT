@@ -3,6 +3,7 @@
 import { DropdownCategory, Factory, NoticeType, PaymentLcKind, ShipmentStatus, Team } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { destroySession, createSession, hashPassword, requireUser, verifyPassword } from "@/lib/auth";
 import { resolveRecipientEmails, sendProgramEmail } from "@/lib/email-program";
 import { fmtDate } from "@/lib/constants";
@@ -24,10 +25,23 @@ function withMessage(path: string, key: "success" | "error", message: string) {
   return `${path}${separator}${key}=${encodeURIComponent(message)}`;
 }
 
-function emailRedirect(path: string, result: { sent: number; failed: number; total: number }): never {
-  if (result.sent > 0 && result.failed === 0) redirect(withMessage(path, "success", "이메일이 발송되었습니다."));
-  if (result.sent > 0) redirect(withMessage(path, "success", `이메일이 일부 발송되었습니다. (${result.sent}/${result.total})`));
-  redirect(withMessage(path, "error", "이메일 발송에 실패했습니다. 이메일 로그를 확인해주세요."));
+function emailQueueRedirect(path: string, task: () => Promise<unknown>): never {
+  after(async () => {
+    try {
+      await task();
+    } catch (error) {
+      await prisma.emailLog.create({
+        data: {
+          to: "",
+          subject: "Background email failed",
+          body: "",
+          status: "FAILED_BACKGROUND",
+          error: error instanceof Error ? error.message : "Unknown background email error"
+        }
+      });
+    }
+  });
+  redirect(withMessage(path, "success", "이메일이 발송되었습니다."));
 }
 
 function noticeTypeText(type: NoticeType) {
@@ -517,8 +531,8 @@ async function savePaymentTT(formData: FormData, intent: string) {
   const data = readPaymentTTForm(formData, user.id);
   const payment = id ? await prisma.paymentTT.update({ where: { id }, data: omitCreatedBy(data) }) : await prisma.paymentTT.create({ data });
   await saveAttachments(formData.getAll("files").filter((f): f is File => f instanceof File), "PAYMENT_TT", payment.id, user.id);
-  if (intent === "notify") emailRedirect("/payments?tab=tt", await sendPaymentTtNotifyMail(payment.id, user.id));
-  if (intent === "confirm") emailRedirect("/payments?tab=tt", await sendPaymentTtConfirmMail(payment.id, user.id));
+  if (intent === "notify") emailQueueRedirect("/payments?tab=tt", () => sendPaymentTtNotifyMail(payment.id, user.id));
+  if (intent === "confirm") emailQueueRedirect("/payments?tab=tt", () => sendPaymentTtConfirmMail(payment.id, user.id));
   revalidatePath("/payments");
   redirect("/payments?tab=tt");
 }
@@ -542,8 +556,8 @@ async function savePaymentLC(formData: FormData, intent: string) {
   const payment = id ? await prisma.paymentLC.update({ where: { id }, data: omitCreatedBy(data) }) : await prisma.paymentLC.create({ data });
   await saveAttachments(formData.getAll("files").filter((f): f is File => f instanceof File), "PAYMENT_LC", payment.id, user.id);
   await autoLinkLcToShipments(payment.id, user.id);
-  if (intent === "notify") emailRedirect("/payments?tab=lc", await sendPaymentLcNotifyMail(payment.id, user.id));
-  if (intent === "confirm") emailRedirect("/payments?tab=lc", await sendPaymentLcConfirmMail(payment.id, user.id));
+  if (intent === "notify") emailQueueRedirect("/payments?tab=lc", () => sendPaymentLcNotifyMail(payment.id, user.id));
+  if (intent === "confirm") emailQueueRedirect("/payments?tab=lc", () => sendPaymentLcConfirmMail(payment.id, user.id));
   revalidatePath("/payments");
   redirect("/payments?tab=lc");
 }
@@ -834,14 +848,13 @@ export async function sendShipmentRequestMailAction(formData: FormData) {
     "",
     `${appUrl()}/shipments/${shipment.id}`
   ].join("\n");
-  const result = await sendProgramEmail({ to: recipients, subject, body, createdById: user.id });
-  if (type === "new" && result.sent > 0) {
+  if (type === "new") {
     await prisma.shipmentRequest.update({
       where: { id },
       data: { status: ShipmentStatus.SCHEDULE, emailSent: appendEmailSentToken(shipment.emailSent, "SHIPMENT_REQUEST_SENT"), updatedById: user.id }
     });
   }
-  emailRedirect(`/shipments/${id}`, result);
+  emailQueueRedirect(`/shipments/${id}`, () => sendProgramEmail({ to: recipients, subject, body, createdById: user.id }));
 }
 
 export async function sendShipmentScheduleMailAction(formData: FormData) {
@@ -865,14 +878,13 @@ export async function sendShipmentScheduleMailAction(formData: FormData) {
     "",
     `${appUrl()}/shipments/${shipment.id}`
   ].join("\n");
-  const result = await sendProgramEmail({ to: recipients, subject, body, createdById: user.id });
-  if (type === "new" && result.sent > 0) {
+  if (type === "new") {
     await prisma.shipmentRequest.update({
       where: { id },
       data: { emailSent: appendEmailSentToken(shipment.emailSent, "SCHEDULE_MAIL_SENT"), updatedById: user.id }
     });
   }
-  emailRedirect(`/shipments/${id}`, result);
+  emailQueueRedirect(`/shipments/${id}`, () => sendProgramEmail({ to: recipients, subject, body, createdById: user.id }));
 }
 
 export async function sendShipmentQuoteMailAction(formData: FormData) {
@@ -929,7 +941,7 @@ export async function sendShipmentQuoteMailAction(formData: FormData) {
     "FAX : 02-543-2877"
   ].join("\n");
   await prisma.shipmentRequest.update({ where: { id }, data: { status: ShipmentStatus.QUOTE, updatedById: user.id } });
-  emailRedirect(`/shipments/${id}`, await sendProgramEmail({ to: recipients, subject, body, createdById: user.id }));
+  emailQueueRedirect(`/shipments/${id}`, () => sendProgramEmail({ to: recipients, subject, body, createdById: user.id }));
 }
 export async function sendProductCoaMailAction(formData: FormData) {
   const user = await requireUser();
@@ -973,14 +985,15 @@ export async function sendProductCoaMailAction(formData: FormData) {
       </table>
     </div>
   `;
-  const result = await sendProgramEmail({
-    to: recipients,
-    subject: `${factoryLabel} 수출제품 COA 요청의 건_${productName}_${today}`,
-    body,
-    html: true,
-    createdById: user.id
-  });
-  emailRedirect(`/shipments/${shipmentId}`, result);
+  emailQueueRedirect(`/shipments/${shipmentId}`, () =>
+    sendProgramEmail({
+      to: recipients,
+      subject: `${factoryLabel} 수출제품 COA 요청의 건_${productName}_${today}`,
+      body,
+      html: true,
+      createdById: user.id
+    })
+  );
 }
 
 const noticeMailTeams: Team[] = [Team.OVERSEAS_MARKETING, Team.OVERSEAS_SALES, Team.OVERSEAS_SALES_SUPPORT];
@@ -1041,27 +1054,27 @@ export async function saveNoticeAction(formData: FormData) {
   const recipients = await prisma.user.findMany({ where: { team: { in: mailTeams } }, select: { email: true } });
   const importantPrefix = notice.important ? "[중요!] " : "";
   const changePrefix = isEditNotice ? "[수정] " : "";
-  const result = await sendProgramEmail({
-    to: recipients.map((recipient) => recipient.email),
-    subject: `${importantPrefix}${changePrefix}[${noticeTypeText(notice.type)}] ${notice.title} ${notice.place || ""} ${dateTimeText(notice.scheduleDate)} ~ ${dateTimeText(notice.scheduleEndDate)}`,
-    body: [
-      `제목: ${notice.title}`,
-      `공지 유형: ${noticeTypeText(notice.type)}`,
-      `장소: ${notice.place ?? ""}`,
-      `시작일시: ${dateTimeText(notice.scheduleDate)}`,
-      `종료일시: ${dateTimeText(notice.scheduleEndDate)}`,
-      `대상 팀: ${targetTeams.join(", ")}`,
-      "",
-      `공지 내용:`,
-      notice.content,
-      "",
-      `링크: ${appUrl()}/notices?edit=${notice.id}#notice-form`
-    ].join("\n"),
-    createdById: user.id
-  });
-
   revalidatePath("/notices");
-  emailRedirect("/notices", result);
+  emailQueueRedirect("/notices", () =>
+    sendProgramEmail({
+      to: recipients.map((recipient) => recipient.email),
+      subject: `${importantPrefix}${changePrefix}[${noticeTypeText(notice.type)}] ${notice.title} ${notice.place || ""} ${dateTimeText(notice.scheduleDate)} ~ ${dateTimeText(notice.scheduleEndDate)}`,
+      body: [
+        `제목: ${notice.title}`,
+        `공지 유형: ${noticeTypeText(notice.type)}`,
+        `장소: ${notice.place ?? ""}`,
+        `시작일시: ${dateTimeText(notice.scheduleDate)}`,
+        `종료일시: ${dateTimeText(notice.scheduleEndDate)}`,
+        `대상 팀: ${targetTeams.join(", ")}`,
+        "",
+        `공지 내용:`,
+        notice.content,
+        "",
+        `링크: ${appUrl()}/notices?edit=${notice.id}#notice-form`
+      ].join("\n"),
+      createdById: user.id
+    })
+  );
 }
 
 export async function createNoticeAction(formData: FormData) {
