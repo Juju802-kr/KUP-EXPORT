@@ -249,6 +249,7 @@ function TTSection({
               }]}
             />
             <div className="mt-4 flex justify-end gap-2">
+              <button className="btn" formAction={createPaymentTTAction}>저장</button>
               <button className="btn-primary" formAction={confirmPaymentTTAction}>등록</button>
             </div>
           </section>
@@ -403,7 +404,8 @@ function LCSection({
                 amount: current.amount
               }]}
             />
-            <div className="mt-4 flex justify-end">
+            <div className="mt-4 flex justify-end gap-2">
+              <button className="btn" formAction={createPaymentLCAction}>저장</button>
               <button className="btn-primary" formAction={confirmPaymentLCAction}>등록</button>
             </div>
           </section>
