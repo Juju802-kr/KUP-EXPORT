@@ -257,6 +257,8 @@ model PaymentTT {
   createdById           String
   updatedById           String
 
+  allocations           PaymentTTAllocation[]
+
   @@index([date])
   @@index([salesOwner])
   @@index([exportOwner])
@@ -266,6 +268,23 @@ model PaymentTT {
   @@index([invNo])
   @@index([refNo])
   @@index([createdAt])
+}
+
+model PaymentTTAllocation {
+  id                  String    @id @default(cuid())
+  paymentId           String
+  productionRequestNo String?
+  invNo               String?
+  amount              Decimal   @default(0)
+  note                String?
+  sortOrder           Int       @default(0)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  payment             PaymentTT @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId])
+  @@index([productionRequestNo])
+  @@index([invNo])
 }
 
 model PaymentLC {
@@ -294,6 +313,7 @@ model PaymentLC {
   updatedById           String
 
   shipmentLinks LcShipmentLink[]
+  allocations   PaymentLCAllocation[]
 
   @@index([noticeDate])
   @@index([productionRequestNo])
@@ -304,6 +324,20 @@ model PaymentLC {
   @@index([lcNo])
   @@index([lcSd])
   @@index([createdAt])
+}
+
+model PaymentLCAllocation {
+  id                  String    @id @default(cuid())
+  paymentId           String
+  productionRequestNo String?
+  amount              Decimal   @default(0)
+  sortOrder           Int       @default(0)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  payment             PaymentLC @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId])
+  @@index([productionRequestNo])
 }
 
 model LcShipmentLink {

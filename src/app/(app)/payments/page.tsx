@@ -37,8 +37,18 @@ const ttPaymentSelect = {
   productionRequestNo: true,
   invNo: true,
   description: true,
-  note: true
-};
+  note: true,
+  allocations: {
+    orderBy: { sortOrder: "asc" },
+    select: {
+      id: true,
+      productionRequestNo: true,
+      invNo: true,
+      amount: true,
+      note: true
+    }
+  }
+} as const;
 
 const lcPaymentSelect = {
   id: true,
@@ -57,8 +67,16 @@ const lcPaymentSelect = {
   depositOwner: true,
   salesEmailRecipients: true,
   form: true,
-  note: true
-};
+  note: true,
+  allocations: {
+    orderBy: { sortOrder: "asc" },
+    select: {
+      id: true,
+      productionRequestNo: true,
+      amount: true
+    }
+  }
+} as const;
 
 export default async function PaymentsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const params = await searchParams;
@@ -215,7 +233,14 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
           productionRequestNo: payment.productionRequestNo,
           invNo: payment.invNo,
           description: payment.description,
-          note: payment.note
+          note: payment.note,
+          allocations: payment.allocations.map((allocation) => ({
+            id: allocation.id,
+            productionRequestNo: allocation.productionRequestNo,
+            invNo: allocation.invNo,
+            amount: Number(allocation.amount),
+            note: allocation.note
+          }))
         }))}
         lcPayments={visibleLcPayments.map((payment) => ({
           id: payment.id,
@@ -234,7 +259,12 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
           depositOwner: payment.depositOwner,
           salesEmailRecipients: payment.salesEmailRecipients,
           form: payment.form,
-          note: payment.note
+          note: payment.note,
+          allocations: payment.allocations.map((allocation) => ({
+            id: allocation.id,
+            productionRequestNo: allocation.productionRequestNo,
+            amount: Number(allocation.amount)
+          }))
         }))}
         buyers={buyers.map((buyer) => ({
           id: buyer.id,

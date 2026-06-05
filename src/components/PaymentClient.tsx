@@ -35,6 +35,14 @@ type PaymentTTRow = {
   invNo: string | null;
   description: string | null;
   note: string | null;
+  allocations: PaymentTTAllocationRow[];
+};
+type PaymentTTAllocationRow = {
+  id: string;
+  productionRequestNo: string | null;
+  invNo: string | null;
+  amount: unknown;
+  note: string | null;
 };
 type PaymentLCRow = {
   id: string;
@@ -54,6 +62,12 @@ type PaymentLCRow = {
   salesEmailRecipients: string | null;
   form: string | null;
   note: string | null;
+  allocations: PaymentLCAllocationRow[];
+};
+type PaymentLCAllocationRow = {
+  id: string;
+  productionRequestNo: string | null;
+  amount: unknown;
 };
 type AttachmentRow = {
   id: string;
@@ -78,7 +92,8 @@ const emptyTT: PaymentTTRow = {
   productionRequestNo: "",
   invNo: "",
   description: "",
-  note: ""
+  note: "",
+  allocations: []
 };
 
 const emptyLC: PaymentLCRow = {
@@ -98,7 +113,8 @@ const emptyLC: PaymentLCRow = {
   depositOwner: "이해원",
   salesEmailRecipients: "",
   form: "",
-  note: ""
+  note: "",
+  allocations: []
 };
 
 export function PaymentClient({
@@ -223,12 +239,15 @@ function TTSection({
         {editing ? (
           <section className="panel p-5">
             <h2 className="text-base font-semibold">T/T 입금 확인</h2>
-            <div className="mt-4 grid grid-cols-4 gap-4">
-              <Field label="생산의뢰번호"><input name="productionRequestNo" defaultValue={current.productionRequestNo ?? ""} /></Field>
-              <Field label="INV No."><input name="invNo" defaultValue={current.invNo ?? ""} /></Field>
-              <Field label="설명" className="col-span-2"><input name="description" defaultValue={current.description ?? ""} /></Field>
-              <Field label="비고" className="col-span-4"><textarea name="note" defaultValue={current.note ?? ""} rows={4} /></Field>
-            </div>
+            <PaymentTTAllocationRows
+              rows={current.allocations.length ? current.allocations : [{
+                id: "",
+                productionRequestNo: current.productionRequestNo,
+                invNo: current.invNo,
+                amount: current.amount,
+                note: current.note
+              }]}
+            />
             <div className="mt-4 flex justify-end gap-2">
               <button className="btn-primary" formAction={confirmPaymentTTAction}>등록</button>
             </div>
@@ -377,9 +396,13 @@ function LCSection({
         {editing ? (
           <section className="panel p-5">
             <h2 className="text-base font-semibold">L/C 확인</h2>
-            <div className="mt-4 grid grid-cols-4 gap-4">
-              <Field label="수주등록번호"><input name="productionRequestNo" defaultValue={current.productionRequestNo ?? ""} /></Field>
-            </div>
+            <PaymentLCAllocationRows
+              rows={current.allocations.length ? current.allocations : [{
+                id: "",
+                productionRequestNo: current.productionRequestNo,
+                amount: current.amount
+              }]}
+            />
             <div className="mt-4 flex justify-end">
               <button className="btn-primary" formAction={confirmPaymentLCAction}>등록</button>
             </div>
@@ -420,6 +443,78 @@ function LCSection({
           {!payments.length ? <p className="py-3 text-sm text-slate-500">등록된 L/C 통지가 없습니다.</p> : null}
         </div>
       </section>
+    </div>
+  );
+}
+
+function PaymentTTAllocationRows({ rows }: { rows: PaymentTTAllocationRow[] }) {
+  const [items, setItems] = useState(() =>
+    rows.map((row) => ({
+      key: row.id || crypto.randomUUID(),
+      row
+    }))
+  );
+
+  function addRow() {
+    setItems((current) => [
+      { key: crypto.randomUUID(), row: { id: "", productionRequestNo: "", invNo: "", amount: "", note: "" } },
+      ...current
+    ]);
+  }
+
+  return (
+    <div className="mt-4 space-y-3">
+      <div className="flex justify-start">
+        <button type="button" className="btn-primary h-10 px-4" onClick={addRow}>추가</button>
+      </div>
+      <div className="space-y-2">
+        {items.map((item) => {
+          const row = item.row;
+          return (
+            <div key={item.key} className="grid grid-cols-[1fr_1fr_150px_1.5fr] gap-3">
+              <Field label="생산의뢰번호"><input name="ttAllocationProductionRequestNo" defaultValue={row.productionRequestNo ?? ""} /></Field>
+              <Field label="INV No."><input name="ttAllocationInvNo" defaultValue={row.invNo ?? ""} /></Field>
+              <Field label="금액"><AmountInput name="ttAllocationAmount" defaultValue={row.amount} /></Field>
+              <Field label="비고"><input name="ttAllocationNote" defaultValue={row.note ?? ""} /></Field>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function PaymentLCAllocationRows({ rows }: { rows: PaymentLCAllocationRow[] }) {
+  const [items, setItems] = useState(() =>
+    rows.map((row) => ({
+      key: row.id || crypto.randomUUID(),
+      row
+    }))
+  );
+
+  function addRow() {
+    setItems((current) => [
+      { key: crypto.randomUUID(), row: { id: "", productionRequestNo: "", amount: "" } },
+      ...current
+    ]);
+  }
+
+  return (
+    <div className="mt-4 space-y-3">
+      <div className="flex justify-start">
+        <button type="button" className="btn-primary h-10 px-4" onClick={addRow}>추가</button>
+      </div>
+      <div className="space-y-2">
+        {items.map((item) => {
+          const row = item.row;
+          return (
+            <div key={item.key} className="grid grid-cols-[1fr_180px] gap-3">
+              <Field label="생산의뢰번호"><input name="lcAllocationProductionRequestNo" defaultValue={row.productionRequestNo ?? ""} /></Field>
+              <Field label="금액"><AmountInput name="lcAllocationAmount" defaultValue={row.amount} /></Field>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

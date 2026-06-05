@@ -529,7 +529,9 @@ async function savePaymentTT(formData: FormData, intent: string) {
   const user = await requireUser();
   const id = formString(formData, "id");
   const data = readPaymentTTForm(formData, user.id);
+  const allocations = readPaymentTTAllocations(formData, Number(data.amount), id);
   const payment = id ? await prisma.paymentTT.update({ where: { id }, data: omitCreatedBy(data) }) : await prisma.paymentTT.create({ data });
+  await savePaymentTTAllocations(payment.id, allocations);
   await saveAttachments(formData.getAll("files").filter((f): f is File => f instanceof File), "PAYMENT_TT", payment.id, user.id);
   if (intent === "notify") emailQueueRedirect("/payments?tab=tt", () => sendPaymentTtNotifyMail(payment.id, user.id));
   if (intent === "confirm") emailQueueRedirect("/payments?tab=tt", () => sendPaymentTtConfirmMail(payment.id, user.id));
@@ -553,7 +555,9 @@ async function savePaymentLC(formData: FormData, intent: string) {
   const user = await requireUser();
   const id = formString(formData, "id");
   const data = readPaymentLCForm(formData, user.id);
+  const allocations = readPaymentLCAllocations(formData, Number(data.amount), id);
   const payment = id ? await prisma.paymentLC.update({ where: { id }, data: omitCreatedBy(data) }) : await prisma.paymentLC.create({ data });
+  await savePaymentLCAllocations(payment.id, allocations);
   await saveAttachments(formData.getAll("files").filter((f): f is File => f instanceof File), "PAYMENT_LC", payment.id, user.id);
   await autoLinkLcToShipments(payment.id, user.id);
   if (intent === "notify") emailQueueRedirect("/payments?tab=lc", () => sendPaymentLcNotifyMail(payment.id, user.id));
@@ -566,6 +570,119 @@ function omitCreatedBy<T extends { createdById: string }>(data: T) {
   const { createdById: _createdById, ...rest } = data;
   void _createdById;
   return rest;
+}
+
+type TTAllocationInput = {
+  productionRequestNo: string;
+  invNo: string;
+  amount: number;
+  note: string;
+};
+
+type LCAllocationInput = {
+  productionRequestNo: string;
+  amount: number;
+};
+
+function parseMoneyInput(value: FormDataEntryValue | string | null | undefined) {
+  const raw = String(value ?? "").replaceAll(",", "").trim();
+  if (!raw) return 0;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function sumMoney(values: { amount: number }[]) {
+  return Math.round(values.reduce((sum, row) => sum + row.amount, 0) * 100) / 100;
+}
+
+function sameMoney(left: number, right: number) {
+  return Math.abs(left - right) < 0.01;
+}
+
+function joinNonEmpty(values: string[]) {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))].join(", ");
+}
+
+function readPaymentTTAllocations(formData: FormData, paymentAmount: number, paymentId?: string): TTAllocationInput[] | null {
+  const productionNos = formData.getAll("ttAllocationProductionRequestNo").map(String);
+  const invNos = formData.getAll("ttAllocationInvNo").map(String);
+  const amounts = formData.getAll("ttAllocationAmount");
+  const notes = formData.getAll("ttAllocationNote").map(String);
+  if (!productionNos.length && !invNos.length && !amounts.length && !notes.length) return null;
+  const rows = Array.from({ length: Math.max(productionNos.length, invNos.length, amounts.length, notes.length) }, (_, index) => ({
+    productionRequestNo: productionNos[index]?.trim() ?? "",
+    invNo: invNos[index]?.trim() ?? "",
+    amount: parseMoneyInput(amounts[index]),
+    note: notes[index]?.trim() ?? ""
+  })).filter((row) => row.productionRequestNo || row.invNo || row.amount || row.note);
+  if (rows.length && !sameMoney(sumMoney(rows), paymentAmount)) {
+    fail(`/payments?tab=tt${paymentId ? `&edit=${paymentId}` : ""}`, "입력한 금액 합이 입금된 금액과 맞지 않습니다.");
+  }
+  return rows;
+}
+
+function readPaymentLCAllocations(formData: FormData, paymentAmount: number, paymentId?: string): LCAllocationInput[] | null {
+  const productionNos = formData.getAll("lcAllocationProductionRequestNo").map(String);
+  const amounts = formData.getAll("lcAllocationAmount");
+  if (!productionNos.length && !amounts.length) return null;
+  const rows = Array.from({ length: Math.max(productionNos.length, amounts.length) }, (_, index) => ({
+    productionRequestNo: productionNos[index]?.trim() ?? "",
+    amount: parseMoneyInput(amounts[index])
+  })).filter((row) => row.productionRequestNo || row.amount);
+  if (rows.length && !sameMoney(sumMoney(rows), paymentAmount)) {
+    fail(`/payments?tab=lc${paymentId ? `&edit=${paymentId}` : ""}`, "입력한 금액 합이 통지된 금액과 맞지 않습니다.");
+  }
+  return rows;
+}
+
+async function savePaymentTTAllocations(paymentId: string, allocations: TTAllocationInput[] | null) {
+  if (!allocations) return;
+  await prisma.$transaction([
+    prisma.paymentTTAllocation.deleteMany({ where: { paymentId } }),
+    ...allocations.map((row, index) =>
+      prisma.paymentTTAllocation.create({
+        data: {
+          paymentId,
+          productionRequestNo: row.productionRequestNo,
+          invNo: row.invNo,
+          amount: row.amount,
+          note: row.note,
+          sortOrder: index
+        }
+      })
+    ),
+    prisma.paymentTT.update({
+      where: { id: paymentId },
+      data: {
+        productionRequestNo: joinNonEmpty(allocations.map((row) => row.productionRequestNo)),
+        invNo: joinNonEmpty(allocations.map((row) => row.invNo)),
+        note: joinNonEmpty(allocations.map((row) => row.note))
+      }
+    })
+  ]);
+}
+
+async function savePaymentLCAllocations(paymentId: string, allocations: LCAllocationInput[] | null) {
+  if (!allocations) return;
+  await prisma.$transaction([
+    prisma.paymentLCAllocation.deleteMany({ where: { paymentId } }),
+    ...allocations.map((row, index) =>
+      prisma.paymentLCAllocation.create({
+        data: {
+          paymentId,
+          productionRequestNo: row.productionRequestNo,
+          amount: row.amount,
+          sortOrder: index
+        }
+      })
+    ),
+    prisma.paymentLC.update({
+      where: { id: paymentId },
+      data: {
+        productionRequestNo: joinNonEmpty(allocations.map((row) => row.productionRequestNo))
+      }
+    })
+  ]);
 }
 
 export async function deletePaymentAction(formData: FormData) {
@@ -684,7 +801,7 @@ async function sendPaymentLcNotifyMail(id: string, userId: string) {
     subject: `[LC ${kindText}] ${payment.exportCountry || ""}/${payment.buyer || ""} LC No.: ${payment.lcNo || ""} 금액: ${moneyText(payment.currency, payment.amount)} S/D: ${payment.lcSd || ""}`,
     body: [
       "L/C가 통지되었습니다.",
-      "아래 링크로 접속하여 수주등록번호를 등록해주세요.",
+      "아래 링크로 접속하여 생산의뢰번호를 등록해주세요.",
       "",
       `${appUrl()}/payments?tab=lc&edit=${payment.id}`,
       "",
@@ -715,7 +832,7 @@ async function sendPaymentLcConfirmMail(id: string, userId: string) {
       `수출국: ${payment.exportCountry || ""}`,
       `바이어: ${payment.buyer || ""}`,
       `LC No.: ${payment.lcNo || ""}`,
-      `수주등록번호: ${payment.productionRequestNo || ""}`,
+      `생산의뢰번호: ${payment.productionRequestNo || ""}`,
       `금액: ${moneyText(payment.currency, payment.amount)}`,
       `S/D: ${payment.lcSd || ""}`
     ].join("\n"),
