@@ -1204,10 +1204,6 @@ export async function saveNoticeAction(formData: FormData) {
     isCancel ? "\ucde8\uc18c \uc0ac\uc720:" : "\uacf5\uc9c0 \ub0b4\uc6a9:",
     notice.content
   ];
-  if (notice.type !== NoticeType.MEETING) {
-    bodyLines.push("", "\ub9c1\ud06c: " + appUrl() + "/notices?edit=" + notice.id + "#notice-form");
-  }
-
   revalidatePath("/notices");
   revalidatePath("/calendar");
   emailQueueRedirect("/notices", () =>
@@ -1254,8 +1250,7 @@ export async function createNoticeAction(formData: FormData) {
         `장소: ${notice.place ?? ""}`,
         `일정 날짜: ${fmtDate(notice.scheduleDate)}`,
         `작성자: ${user.name}`,
-        `작성일: ${fmtDate(notice.createdAt)}`,
-        `바로가기: ${appUrl()}/notices#${notice.id}`
+        `작성일: ${fmtDate(notice.createdAt)}`
       ].join("\n"),
       createdById: user.id
     });
