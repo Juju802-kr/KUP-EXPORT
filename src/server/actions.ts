@@ -934,11 +934,11 @@ export async function sendShipmentQuoteMailAction(formData: FormData) {
     `${exportOwner} / 해외영업지원팀`,
     "",
     "한국유나이티드제약(주) KOREA UNITED PHARM. INC.",
-    "서울특별시 강남구 논현로 117길 7, 5층",
-    "Nonhyeon-ro 117-gil 7, Gangnam-gu, Seoul, Korea",
+    "서울특별시 강남구 논현로 121길 22",
+    "Nonhyeon-ro 121-gil 22, Gangnam-gu, Seoul, Korea",
     "",
     `TEL : ${exportOwnerTel(exportOwner)}`,
-    "FAX : 02-543-2877"
+    "FAX : 02-516-3724"
   ].join("\n");
   await prisma.shipmentRequest.update({ where: { id }, data: { status: ShipmentStatus.QUOTE, updatedById: user.id } });
   emailQueueRedirect(`/shipments/${id}`, () => sendProgramEmail({ to: recipients, subject, body, createdById: user.id }));
