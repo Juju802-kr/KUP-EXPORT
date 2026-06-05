@@ -55,9 +55,10 @@ export default async function NoticesPage({ searchParams }: { searchParams: Prom
   const params = await searchParams;
   const q = params.q?.trim();
   const editId = params.edit?.trim();
+  const cancelId = params.cancel?.trim();
   const notices = await prisma.notice.findMany({
     where: q
-      ? { OR: [{ title: { contains: q } }, { content: { contains: q } }, { recipientTeams: { some: { team: { contains: q } } } }] }
+      ? { OR: [{ title: { contains: q } }, { content: { contains: q } }, { cancelReason: { contains: q } }, { recipientTeams: { some: { team: { contains: q } } } }] }
       : {},
     include: { recipientTeams: true },
     orderBy: [{ important: "desc" }, { createdAt: "desc" }]
@@ -70,17 +71,20 @@ export default async function NoticesPage({ searchParams }: { searchParams: Prom
     : [];
 
   return (
-      <div className="space-y-5">
+    <div className="space-y-5">
       <h1 className="text-2xl font-semibold">공지</h1>
 
       <NoticeEditor
         editId={editId}
+        cancelId={cancelId}
         notices={notices.map((notice) => ({
           id: notice.id,
           title: notice.title,
           content: notice.content,
           type: notice.type,
           important: notice.important,
+          canceled: notice.canceled,
+          cancelReason: notice.cancelReason ?? "",
           place: notice.place ?? "",
           scheduleDate: fmtDateTimeLocal(notice.scheduleDate),
           scheduleEndDate: fmtDateTimeLocal(notice.scheduleEndDate),
@@ -104,7 +108,10 @@ export default async function NoticesPage({ searchParams }: { searchParams: Prom
                   {notice.important ? <span className="mr-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-rose-100 font-bold text-rose-700">!</span> : null}
                   {noticeTypeLabels[notice.type]}
                 </p>
-                <h2 className="mt-1 text-lg font-semibold">{notice.title}</h2>
+                <h2 className="mt-1 flex flex-wrap items-center gap-2 text-lg font-semibold">
+                  <span>{notice.title}</span>
+                  {notice.canceled ? <span className="rounded-md bg-rose-100 px-2 py-0.5 text-xs font-bold text-rose-700">취소</span> : null}
+                </h2>
                 <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{notice.content}</p>
                 <AttachmentLinkList files={noticeAttachments.filter((file) => file.ownerId === notice.id)} />
                 <p className="mt-3 text-xs text-slate-500">
@@ -114,6 +121,9 @@ export default async function NoticesPage({ searchParams }: { searchParams: Prom
               <div className="flex shrink-0 items-stretch gap-2">
                 <Link className="btn-primary flex h-11 items-center px-5" href={`/notices?edit=${notice.id}#notice-form`}>
                   수정
+                </Link>
+                <Link className="btn flex h-11 items-center px-5 text-rose-700" href={`/notices?cancel=${notice.id}#notice-form`}>
+                  취소
                 </Link>
                 <form action={deleteNoticeAction} className="flex">
                   <input type="hidden" name="id" value={notice.id} />
@@ -132,6 +142,7 @@ export default async function NoticesPage({ searchParams }: { searchParams: Prom
             <div key={notice.id} className="py-2 text-sm">
               <span className="font-medium text-slate-700">{fmtShortDate(notice.scheduleDate) || "-"}</span>
               <span className="ml-3 text-slate-900">{notice.title}</span>
+              {notice.canceled ? <span className="ml-2 rounded-md bg-rose-100 px-2 py-0.5 text-xs font-bold text-rose-700">취소</span> : null}
               <span className="mx-2 text-slate-400">-</span>
               <span className="text-slate-600">{teamsText(notice.recipientTeams)}</span>
             </div>

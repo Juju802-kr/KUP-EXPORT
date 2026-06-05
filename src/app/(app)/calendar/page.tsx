@@ -117,7 +117,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
           include: { products: true }
         }),
     mode === "notice"
-      ? prisma.notice.findMany({ where: { scheduleDate: { gte: start, lt: end } }, include: { recipientTeams: true }, orderBy: { scheduleDate: "asc" } })
+      ? prisma.notice.findMany({ where: { canceled: false, scheduleDate: { gte: start, lt: end } }, include: { recipientTeams: true }, orderBy: { scheduleDate: "asc" } })
       : Promise.resolve([])
   ]);
 

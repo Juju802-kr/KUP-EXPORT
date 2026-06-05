@@ -999,27 +999,50 @@ export async function sendProductCoaMailAction(formData: FormData) {
 const noticeMailTeams: Team[] = [Team.OVERSEAS_MARKETING, Team.OVERSEAS_SALES, Team.OVERSEAS_SALES_SUPPORT];
 const salesMailTeams: Team[] = [Team.OVERSEAS_MARKETING, Team.OVERSEAS_SALES, Team.OVERSEAS_BRANCH];
 const exportOwnerTeams: Team[] = [Team.OVERSEAS_SALES_SUPPORT];
+const noticeTeamLabels: Record<string, string> = {
+  "전체": "전체",
+  [Team.OVERSEAS_MARKETING]: "해외마케팅팀",
+  [Team.OVERSEAS_SALES]: "해외영업팀",
+  [Team.OVERSEAS_SALES_SUPPORT]: "해외영업지원팀"
+};
+
+function noticeMailTargetTeams(targetTeams: string[]) {
+  return targetTeams.includes("전체")
+    ? noticeMailTeams
+    : targetTeams.filter((team): team is Team => noticeMailTeams.includes(team as Team));
+}
+
+function noticeTargetTeamText(targetTeams: string[]) {
+  const teams = targetTeams.includes("전체") ? noticeMailTeams : targetTeams;
+  return teams.map((team) => noticeTeamLabels[team] ?? team).join(", ");
+}
 
 export async function saveNoticeAction(formData: FormData) {
   const user = await requireUser();
   const id = formString(formData, "id");
+  const intent = formString(formData, "intent") || (id ? "edit" : "new");
+  const isCancel = intent === "cancel";
   const title = formString(formData, "title");
   const content = formString(formData, "content");
-  if (!title || !content) fail("/notices", "공지 제목과 내용을 입력해주세요.");
+  if (!title || !content) fail("/notices", isCancel ? "?? ??? ??????." : "?? ??? ??? ??????.");
+  if (isCancel && !id) fail("/notices", "??? ??? ??????.");
   const scheduleDate = formDate(formData, "scheduleDate");
   const scheduleEndDate = formDate(formData, "scheduleEndDate");
   if (scheduleDate && scheduleEndDate && scheduleEndDate < scheduleDate) {
-    fail("/notices", "종료일시가 시작일시보다 앞설 수 없습니다");
+    fail("/notices", "????? ?????? ?? ? ????");
   }
 
   const teams = formData.getAll("teams").map(String).filter(Boolean);
-  const targetTeams = teams.length ? teams : ["전체"];
+  const targetTeams = teams.length ? teams : ["??"];
   const isEditNotice = Boolean(id);
   const data = {
     title,
     content,
     type: (formString(formData, "type") || "GENERAL") as NoticeType,
     important: formData.get("important") === "on",
+    canceled: isCancel,
+    cancelReason: isCancel ? content : null,
+    canceledAt: isCancel ? new Date() : null,
     place: formString(formData, "place"),
     scheduleDate,
     scheduleEndDate,
@@ -1048,30 +1071,33 @@ export async function saveNoticeAction(formData: FormData) {
 
   await saveAttachments(formData.getAll("files").filter((file): file is File => file instanceof File), "NOTICE", notice.id, user.id);
 
-  const mailTeams = targetTeams.includes("전체")
-    ? noticeMailTeams
-    : targetTeams.filter((team): team is Team => noticeMailTeams.includes(team as Team));
+  const mailTeams = noticeMailTargetTeams(targetTeams);
   const recipients = await prisma.user.findMany({ where: { team: { in: mailTeams } }, select: { email: true } });
-  const importantPrefix = notice.important ? "[중요!] " : "";
-  const changePrefix = isEditNotice ? "[수정] " : "";
+  const importantPrefix = notice.important ? "[??!] " : "";
+  const changePrefix = isCancel ? "????" : isEditNotice ? "????" : "";
+  const teamText = noticeTargetTeamText(targetTeams);
+  const bodyLines = [
+    "??: " + notice.title,
+    "?? ??: " + noticeTypeText(notice.type),
+    "??: " + (notice.place ?? ""),
+    "????: " + dateTimeText(notice.scheduleDate),
+    "????: " + dateTimeText(notice.scheduleEndDate),
+    "?? ?: " + teamText,
+    "",
+    isCancel ? "?? ??:" : "?? ??:",
+    notice.content
+  ];
+  if (notice.type !== NoticeType.MEETING) {
+    bodyLines.push("", "??: " + appUrl() + "/notices?edit=" + notice.id + "#notice-form");
+  }
+
   revalidatePath("/notices");
+  revalidatePath("/calendar");
   emailQueueRedirect("/notices", () =>
     sendProgramEmail({
       to: recipients.map((recipient) => recipient.email),
-      subject: `${importantPrefix}${changePrefix}[${noticeTypeText(notice.type)}] ${notice.title} ${notice.place || ""} ${dateTimeText(notice.scheduleDate)} ~ ${dateTimeText(notice.scheduleEndDate)}`,
-      body: [
-        `제목: ${notice.title}`,
-        `공지 유형: ${noticeTypeText(notice.type)}`,
-        `장소: ${notice.place ?? ""}`,
-        `시작일시: ${dateTimeText(notice.scheduleDate)}`,
-        `종료일시: ${dateTimeText(notice.scheduleEndDate)}`,
-        `대상 팀: ${targetTeams.join(", ")}`,
-        "",
-        `공지 내용:`,
-        notice.content,
-        "",
-        `링크: ${appUrl()}/notices?edit=${notice.id}#notice-form`
-      ].join("\n"),
+      subject: changePrefix + importantPrefix + "[" + noticeTypeText(notice.type) + "] " + notice.title + " " + (notice.place || "") + " " + dateTimeText(notice.scheduleDate) + " ~ " + dateTimeText(notice.scheduleEndDate),
+      body: bodyLines.join("\n"),
       createdById: user.id
     })
   );

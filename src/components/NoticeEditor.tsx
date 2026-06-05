@@ -10,6 +10,8 @@ type NoticeRow = {
   content: string;
   type: NoticeType;
   important: boolean;
+  canceled: boolean;
+  cancelReason: string;
   place: string;
   scheduleDate: string;
   scheduleEndDate: string;
@@ -30,32 +32,41 @@ const emptyNotice: NoticeRow = {
   content: "",
   type: NoticeType.GENERAL,
   important: false,
+  canceled: false,
+  cancelReason: "",
   place: "",
   scheduleDate: "",
   scheduleEndDate: "",
   teams: [allTeamValue]
 };
 
-export function NoticeEditor({ notices, editId }: { notices: NoticeRow[]; editId?: string }) {
+export function NoticeEditor({ notices, editId, cancelId }: { notices: NoticeRow[]; editId?: string; cancelId?: string }) {
   const hasEditNotice = Boolean(editId && notices.some((notice) => notice.id === editId));
-  const [mode, setMode] = useState<"new" | "edit">(hasEditNotice ? "edit" : "new");
-  const [selectedId, setSelectedId] = useState(editId ?? "");
+  const hasCancelNotice = Boolean(cancelId && notices.some((notice) => notice.id === cancelId));
+  const initialMode = hasCancelNotice ? "cancel" : hasEditNotice ? "edit" : "new";
+  const [mode, setMode] = useState<"new" | "edit" | "cancel">(initialMode);
+  const [selectedId, setSelectedId] = useState(cancelId ?? editId ?? "");
   const [error, setError] = useState("");
 
   const selectedNotice = useMemo(() => notices.find((notice) => notice.id === selectedId) ?? emptyNotice, [notices, selectedId]);
-  const formNotice = mode === "edit" ? selectedNotice : emptyNotice;
+  const formNotice = mode === "edit" ? selectedNotice : mode === "cancel" ? { ...selectedNotice, content: selectedNotice.cancelReason || "" } : emptyNotice;
 
   useEffect(() => {
+    if (hasCancelNotice && cancelId) {
+      setMode("cancel");
+      setSelectedId(cancelId);
+      return;
+    }
     if (hasEditNotice && editId) {
       setMode("edit");
       setSelectedId(editId);
       return;
     }
-    if (!editId) {
+    if (!editId && !cancelId) {
       setMode("new");
       setSelectedId("");
     }
-  }, [editId, hasEditNotice]);
+  }, [cancelId, editId, hasCancelNotice, hasEditNotice]);
 
   function validatePeriod(event: FormEvent<HTMLFormElement>) {
     const formData = new FormData(event.currentTarget);
@@ -73,8 +84,9 @@ export function NoticeEditor({ notices, editId }: { notices: NoticeRow[]; editId
 
   return (
     <form id="notice-form" key={`${mode}-${formNotice.id}`} action={saveNoticeAction} onSubmit={validatePeriod} className="panel p-5">
-      <h2 className="text-base font-semibold">{mode === "edit" ? "공지 수정" : "공지 등록"}</h2>
-      <input type="hidden" name="id" value={mode === "edit" ? formNotice.id : ""} />
+      <h2 className="text-base font-semibold">{mode === "cancel" ? "공지 취소" : mode === "edit" ? "공지 수정" : "공지 등록"}</h2>
+      <input type="hidden" name="id" value={mode === "edit" || mode === "cancel" ? formNotice.id : ""} />
+      <input type="hidden" name="intent" value={mode} />
       {error ? (
         <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700" role="alert">
           {error}
@@ -126,7 +138,7 @@ export function NoticeEditor({ notices, editId }: { notices: NoticeRow[]; editId
         <TeamCheckboxGroup key={`${mode}-${formNotice.id}-teams`} initialTeams={formNotice.teams} />
 
         <div className="field col-span-4">
-          <label>공지 내용</label>
+          <label>{mode === "cancel" ? "취소 사유" : "공지 내용"}</label>
           <textarea name="content" defaultValue={formNotice.content} required rows={6} />
         </div>
 
@@ -136,7 +148,7 @@ export function NoticeEditor({ notices, editId }: { notices: NoticeRow[]; editId
         </div>
 
         <div className="col-span-2 flex items-end justify-end gap-2">
-          {mode === "edit" ? (
+          {mode !== "new" ? (
             <a className="btn h-11" href="/notices#notice-form">
               신규로 돌아가기
             </a>

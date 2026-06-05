@@ -325,6 +325,9 @@ model Notice {
   content     String
   type        NoticeType @default(GENERAL)
   important   Boolean    @default(false)
+  canceled    Boolean    @default(false)
+  cancelReason String?
+  canceledAt  DateTime?
   place       String?
   scheduleDate DateTime?
   scheduleEndDate DateTime?
