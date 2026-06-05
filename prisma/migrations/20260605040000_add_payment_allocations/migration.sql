@@ -1,4 +1,4 @@
-﻿CREATE TABLE "PaymentTTAllocation" (
+CREATE TABLE "PaymentTTAllocation" (
     "id" TEXT NOT NULL,
     "paymentId" TEXT NOT NULL,
     "productionRequestNo" TEXT,
