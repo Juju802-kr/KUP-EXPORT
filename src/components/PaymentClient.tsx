@@ -462,6 +462,10 @@ function PaymentTTAllocationRows({ rows }: { rows: PaymentTTAllocationRow[] }) {
     ]);
   }
 
+  function removeRow(key: string) {
+    setItems((current) => current.filter((item) => item.key !== key));
+  }
+
   return (
     <div className="mt-4 space-y-3">
       <div className="flex justify-start">
@@ -471,11 +475,14 @@ function PaymentTTAllocationRows({ rows }: { rows: PaymentTTAllocationRow[] }) {
         {items.map((item) => {
           const row = item.row;
           return (
-            <div key={item.key} className="grid grid-cols-[1fr_1fr_150px_1.5fr] gap-3">
+            <div key={item.key} className="grid grid-cols-[1fr_1fr_150px_1.5fr_auto] items-end gap-3">
               <Field label="생산의뢰번호"><input name="ttAllocationProductionRequestNo" defaultValue={row.productionRequestNo ?? ""} /></Field>
               <Field label="INV No."><input name="ttAllocationInvNo" defaultValue={row.invNo ?? ""} /></Field>
               <Field label="금액"><AmountInput name="ttAllocationAmount" defaultValue={row.amount} /></Field>
               <Field label="비고"><input name="ttAllocationNote" defaultValue={row.note ?? ""} /></Field>
+              <button type="button" className="h-11 rounded-md bg-red-600 px-4 text-sm font-semibold text-white hover:bg-red-700" onClick={() => removeRow(item.key)}>
+                삭제
+              </button>
             </div>
           );
         })}
@@ -499,6 +506,10 @@ function PaymentLCAllocationRows({ rows }: { rows: PaymentLCAllocationRow[] }) {
     ]);
   }
 
+  function removeRow(key: string) {
+    setItems((current) => current.filter((item) => item.key !== key));
+  }
+
   return (
     <div className="mt-4 space-y-3">
       <div className="flex justify-start">
@@ -508,9 +519,12 @@ function PaymentLCAllocationRows({ rows }: { rows: PaymentLCAllocationRow[] }) {
         {items.map((item) => {
           const row = item.row;
           return (
-            <div key={item.key} className="grid grid-cols-[1fr_180px] gap-3">
+            <div key={item.key} className="grid grid-cols-[1fr_180px_auto] items-end gap-3">
               <Field label="생산의뢰번호"><input name="lcAllocationProductionRequestNo" defaultValue={row.productionRequestNo ?? ""} /></Field>
               <Field label="금액"><AmountInput name="lcAllocationAmount" defaultValue={row.amount} /></Field>
+              <button type="button" className="h-11 rounded-md bg-red-600 px-4 text-sm font-semibold text-white hover:bg-red-700" onClick={() => removeRow(item.key)}>
+                삭제
+              </button>
             </div>
           );
         })}

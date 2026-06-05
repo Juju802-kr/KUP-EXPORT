@@ -13,11 +13,11 @@ import { saveAttachments } from "@/lib/upload";
 import { emailSchema, formDate, formNumber, formString } from "@/lib/validators";
 
 function fail(path: string, message: string): never {
-  redirect(`${path}?error=${encodeURIComponent(message)}`);
+  redirect(withMessage(path, "error", message));
 }
 
 function succeed(path: string, message: string): never {
-  redirect(`${path}?success=${encodeURIComponent(message)}`);
+  redirect(withMessage(path, "success", message));
 }
 
 function withMessage(path: string, key: "success" | "error", message: string) {
@@ -585,7 +585,7 @@ type LCAllocationInput = {
 };
 
 function parseMoneyInput(value: FormDataEntryValue | string | null | undefined) {
-  const raw = String(value ?? "").replaceAll(",", "").trim();
+  const raw = String(value ?? "").replaceAll(",", "").replace(/[^\d.-]/g, "").trim();
   if (!raw) return 0;
   const parsed = Number(raw);
   return Number.isFinite(parsed) ? parsed : 0;
