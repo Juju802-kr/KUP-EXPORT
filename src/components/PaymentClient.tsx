@@ -234,10 +234,10 @@ function TTSection({
         <h2 className="text-base font-semibold">T/T 입금 관리 목록</h2>
         <PaymentSearchForm tab="tt" defaultValue={searchQuery} />
         <div className="mt-3 divide-y divide-slate-100">
-          <div className="grid grid-cols-[130px_120px_140px_1fr_1fr_1fr_180px_auto] items-center gap-3 py-2 text-xs font-medium text-slate-500">
-            <span>금액</span>
+          <div className="grid grid-cols-[120px_140px_130px_1fr_1fr_1fr_180px_auto] items-center gap-3 py-2 text-xs font-medium text-slate-500">
             <span>국가</span>
             <span>바이어</span>
+            <span>금액</span>
             <span>생산의뢰번호</span>
             <span>INV No.</span>
             <span>설명</span>
@@ -245,12 +245,12 @@ function TTSection({
             <span />
           </div>
           {payments.map((payment) => (
-            <div key={payment.id} className="grid grid-cols-[130px_120px_140px_1fr_1fr_1fr_180px_auto] items-center gap-3 py-3 text-sm">
+            <div key={payment.id} className="grid grid-cols-[120px_140px_130px_1fr_1fr_1fr_180px_auto] items-center gap-3 py-3 text-sm">
+              <RowButton onClick={() => startEdit(payment)}>{payment.exportCountry || "-"}</RowButton>
+              <RowButton onClick={() => startEdit(payment)}>{payment.buyer || "-"}</RowButton>
               <button type="button" className="text-left font-medium text-slate-900" onClick={() => startEdit(payment)}>
                 {payment.currency ?? "USD"}{Number(payment.amount ?? 0).toLocaleString("ko-KR")}
               </button>
-              <RowButton onClick={() => startEdit(payment)}>{payment.exportCountry || "-"}</RowButton>
-              <RowButton onClick={() => startEdit(payment)}>{payment.buyer || "-"}</RowButton>
               <RowButton onClick={() => startEdit(payment)}>{payment.productionRequestNo || "-"}</RowButton>
               <RowButton onClick={() => startEdit(payment)}>{payment.invNo || "-"}</RowButton>
               <RowButton onClick={() => startEdit(payment)} muted>{payment.description || "-"}</RowButton>
@@ -383,10 +383,10 @@ function LCSection({
         <h2 className="text-base font-semibold">L/C 통지 관리 목록</h2>
         <PaymentSearchForm tab="lc" defaultValue={searchQuery} />
         <div className="mt-3 divide-y divide-slate-100">
-          <div className="grid grid-cols-[130px_110px_130px_1fr_1fr_1fr_180px_auto] items-center gap-3 py-2 text-xs font-medium text-slate-500">
-            <span>금액</span>
+          <div className="grid grid-cols-[110px_130px_130px_1fr_1fr_1fr_180px_auto] items-center gap-3 py-2 text-xs font-medium text-slate-500">
             <span>국가</span>
             <span>바이어</span>
+            <span>금액</span>
             <span>수주등록번호</span>
             <span>LC No.</span>
             <span>LC S/D</span>
@@ -394,12 +394,12 @@ function LCSection({
             <span />
           </div>
           {payments.map((payment) => (
-            <div key={payment.id} className="grid grid-cols-[130px_110px_130px_1fr_1fr_1fr_180px_auto] items-center gap-3 py-3 text-sm">
+            <div key={payment.id} className="grid grid-cols-[110px_130px_130px_1fr_1fr_1fr_180px_auto] items-center gap-3 py-3 text-sm">
+              <RowButton onClick={() => startEdit(payment)}>{payment.exportCountry || "-"}</RowButton>
+              <RowButton onClick={() => startEdit(payment)}>{payment.buyer || "-"}</RowButton>
               <button type="button" className="text-left font-medium text-slate-900" onClick={() => startEdit(payment)}>
                 {payment.currency ?? "USD"}{Number(payment.amount ?? 0).toLocaleString("ko-KR")}
               </button>
-              <RowButton onClick={() => startEdit(payment)}>{payment.exportCountry || "-"}</RowButton>
-              <RowButton onClick={() => startEdit(payment)}>{payment.buyer || "-"}</RowButton>
               <RowButton onClick={() => startEdit(payment)}>{payment.productionRequestNo || "-"}</RowButton>
               <RowButton onClick={() => startEdit(payment)}>{payment.lcNo || "-"}</RowButton>
               <RowButton onClick={() => startEdit(payment)} muted>{payment.lcSd || "-"}</RowButton>

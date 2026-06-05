@@ -23,10 +23,11 @@ export function numberText(value: unknown) {
   return Number.isFinite(number) ? number : 0;
 }
 
-export function tableHtml(title: string, headers: string[], rows: ExportCell[][]) {
+export function tableHtml(title: string, headers: string[], rows: ExportCell[][], options: { textColumns?: number[] } = {}) {
+  const textColumns = new Set(options.textColumns ?? []);
   const head = headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("");
   const body = rows
-    .map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`)
+    .map((row) => `<tr>${row.map((cell, index) => `<td${textColumns.has(index) ? ' class="text-cell"' : ""}>${escapeHtml(cell)}</td>`).join("")}</tr>`)
     .join("");
 
   return `<!doctype html>
@@ -40,6 +41,7 @@ export function tableHtml(title: string, headers: string[], rows: ExportCell[][]
     table { border-collapse: collapse; width: 100%; }
     th, td { border: 1px solid #cbd5e1; padding: 6px 8px; vertical-align: top; white-space: nowrap; }
     th { background: #eff6ff; font-weight: 700; text-align: center; }
+    .text-cell { mso-number-format:"\\@"; }
   </style>
 </head>
 <body>

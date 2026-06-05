@@ -48,7 +48,7 @@ export async function GET(request: Request) {
       payment.lcNo ?? "",
       payment.lcSd ?? ""
     ]);
-    const html = tableHtml("L/C 통지 데이터", lcHeaders, rows);
+    const html = tableHtml("L/C 통지 데이터", lcHeaders, rows, { textColumns: [9] });
     if (format === "pdf") return printableResponse(html);
     return excelResponse(`lc-export-${new Date().toISOString().slice(0, 10)}`, html);
   }
