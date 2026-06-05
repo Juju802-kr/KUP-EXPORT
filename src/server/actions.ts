@@ -1024,16 +1024,16 @@ export async function saveNoticeAction(formData: FormData) {
   const isCancel = intent === "cancel";
   const title = formString(formData, "title");
   const content = formString(formData, "content");
-  if (!title || !content) fail("/notices", isCancel ? "?? ??? ??????." : "?? ??? ??? ??????.");
-  if (isCancel && !id) fail("/notices", "??? ??? ??????.");
+  if (!title || !content) fail("/notices", isCancel ? "\ucde8\uc18c \uc0ac\uc720\ub97c \uc785\ub825\ud574\uc8fc\uc138\uc694." : "\uacf5\uc9c0 \uc81c\ubaa9\uacfc \ub0b4\uc6a9\uc744 \uc785\ub825\ud574\uc8fc\uc138\uc694.");
+  if (isCancel && !id) fail("/notices", "\ucde8\uc18c\ud560 \uacf5\uc9c0\ub97c \uc120\ud0dd\ud574\uc8fc\uc138\uc694.");
   const scheduleDate = formDate(formData, "scheduleDate");
   const scheduleEndDate = formDate(formData, "scheduleEndDate");
   if (scheduleDate && scheduleEndDate && scheduleEndDate < scheduleDate) {
-    fail("/notices", "????? ?????? ?? ? ????");
+    fail("/notices", "\uc885\ub8cc\uc77c\uc2dc\uac00 \uc2dc\uc791\uc77c\uc2dc\ubcf4\ub2e4 \uc55e\uc124 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4");
   }
 
   const teams = formData.getAll("teams").map(String).filter(Boolean);
-  const targetTeams = teams.length ? teams : ["??"];
+  const targetTeams = teams.length ? teams : ["\uc804\uccb4"];
   const isEditNotice = Boolean(id);
   const data = {
     title,
@@ -1073,22 +1073,22 @@ export async function saveNoticeAction(formData: FormData) {
 
   const mailTeams = noticeMailTargetTeams(targetTeams);
   const recipients = await prisma.user.findMany({ where: { team: { in: mailTeams } }, select: { email: true } });
-  const importantPrefix = notice.important ? "[??!] " : "";
-  const changePrefix = isCancel ? "????" : isEditNotice ? "????" : "";
+  const importantPrefix = notice.important ? "[\uc911\uc694!] " : "";
+  const changePrefix = isCancel ? "\u203b\ucde8\uc18c\u203b" : isEditNotice ? "\u2605\uc218\uc815\u2605" : "";
   const teamText = noticeTargetTeamText(targetTeams);
   const bodyLines = [
-    "??: " + notice.title,
-    "?? ??: " + noticeTypeText(notice.type),
-    "??: " + (notice.place ?? ""),
-    "????: " + dateTimeText(notice.scheduleDate),
-    "????: " + dateTimeText(notice.scheduleEndDate),
-    "?? ?: " + teamText,
+    "\uc81c\ubaa9: " + notice.title,
+    "\uacf5\uc9c0 \uc720\ud615: " + noticeTypeText(notice.type),
+    "\uc7a5\uc18c: " + (notice.place ?? ""),
+    "\uc2dc\uc791\uc77c\uc2dc: " + dateTimeText(notice.scheduleDate),
+    "\uc885\ub8cc\uc77c\uc2dc: " + dateTimeText(notice.scheduleEndDate),
+    "\ub300\uc0c1 \ud300: " + teamText,
     "",
-    isCancel ? "?? ??:" : "?? ??:",
+    isCancel ? "\ucde8\uc18c \uc0ac\uc720:" : "\uacf5\uc9c0 \ub0b4\uc6a9:",
     notice.content
   ];
   if (notice.type !== NoticeType.MEETING) {
-    bodyLines.push("", "??: " + appUrl() + "/notices?edit=" + notice.id + "#notice-form");
+    bodyLines.push("", "\ub9c1\ud06c: " + appUrl() + "/notices?edit=" + notice.id + "#notice-form");
   }
 
   revalidatePath("/notices");

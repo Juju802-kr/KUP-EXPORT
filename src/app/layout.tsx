@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SubmitFeedback } from "@/components/SubmitFeedback";
 import "./globals.css";
 
 export const preferredRegion = "icn1";
@@ -11,7 +12,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ko">
-      <body>{children}</body>
+      <body>
+        <SubmitFeedback />
+        {children}
+      </body>
     </html>
   );
 }
