@@ -437,7 +437,8 @@ function PaymentSearchForm({ tab, defaultValue, pendingOnly }: { tab: "tt" | "lc
         <label>검색</label>
         <input name="q" defaultValue={defaultValue} placeholder="국가, 바이어, REF No., 생산의뢰번호, INV No., LC No." />
       </div>
-      <label className="mb-2 flex h-11 items-center gap-2 whitespace-nowrap text-sm font-medium text-slate-700">
+      <button className="btn h-11">검색</button>
+      <label className="flex h-11 items-center gap-2 self-end whitespace-nowrap text-sm font-medium text-slate-700">
         <input
           type="checkbox"
           name="pending"
@@ -448,7 +449,6 @@ function PaymentSearchForm({ tab, defaultValue, pendingOnly }: { tab: "tt" | "lc
         />
         확인대기
       </label>
-      <button className="btn h-11">검색</button>
     </form>
   );
 }
