@@ -6,6 +6,8 @@ import { fmtDate, fmtDateTimeLocal } from "@/lib/constants";
 import { prisma } from "@/lib/prisma";
 import { deleteNoticeAction } from "@/server/actions";
 
+const noticeListLimit = 200;
+
 const noticeTypeLabels: Record<NoticeType, string> = {
   GENERAL: "일반",
   URGENT: "긴급",
@@ -61,7 +63,8 @@ export default async function NoticesPage({ searchParams }: { searchParams: Prom
       ? { OR: [{ title: { contains: q } }, { content: { contains: q } }, { cancelReason: { contains: q } }, { recipientTeams: { some: { team: { contains: q } } } }] }
       : {},
     include: { recipientTeams: true },
-    orderBy: [{ important: "desc" }, { createdAt: "desc" }]
+    orderBy: [{ important: "desc" }, { createdAt: "desc" }],
+    take: noticeListLimit
   });
   const noticeAttachments = notices.length
     ? await prisma.attachment.findMany({

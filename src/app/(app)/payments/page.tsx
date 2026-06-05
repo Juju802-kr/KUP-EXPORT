@@ -4,6 +4,8 @@ import { PaymentClient } from "@/components/PaymentClient";
 import { fmtDate } from "@/lib/constants";
 import { prisma } from "@/lib/prisma";
 
+const paymentListLimit = 300;
+
 export default async function PaymentsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const params = await searchParams;
   const tab = params.tab === "lc" ? "lc" : "tt";
@@ -63,6 +65,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
       ? prisma.paymentTT.findMany({
           where: ttWhere,
           orderBy: { createdAt: "desc" },
+          take: paymentListLimit,
           select: {
             id: true,
             exportCountry: true,
@@ -86,6 +89,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
       ? prisma.paymentLC.findMany({
           where: lcWhere,
           orderBy: { createdAt: "desc" },
+          take: paymentListLimit,
           select: {
             id: true,
             kind: true,

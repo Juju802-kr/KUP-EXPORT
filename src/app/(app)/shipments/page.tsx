@@ -8,6 +8,9 @@ import { fmtDate, fmtMoney } from "@/lib/constants";
 import { prisma } from "@/lib/prisma";
 import { shipmentDisplayTitle } from "@/lib/shipment-title";
 
+const shipmentListLimit = 500;
+const dataLoggerListLimit = 300;
+
 const salesOwnerOrder = ["김상훈", "도준현", "변재형", "최유라", "박사라", "음정현", "심상완", "권정현"];
 const exportOwnerOrder = ["김영민", "박휘원", "이해원"];
 
@@ -62,9 +65,10 @@ export default async function ShipmentsPage({ searchParams }: { searchParams: Pr
           }
         }
       },
-      orderBy: [{ sortOrder: "asc" }, { updatedAt: "desc" }]
+      orderBy: [{ sortOrder: "asc" }, { updatedAt: "desc" }],
+      take: shipmentListLimit
     }),
-    view === "datalogger" ? prisma.dataLogger.findMany({ orderBy: { createdAt: "desc" } }) : Promise.resolve([]),
+    view === "datalogger" ? prisma.dataLogger.findMany({ orderBy: { createdAt: "desc" }, take: dataLoggerListLimit }) : Promise.resolve([]),
     prisma.user.findMany({ select: { name: true, team: true }, orderBy: { name: "asc" } })
   ]);
 
