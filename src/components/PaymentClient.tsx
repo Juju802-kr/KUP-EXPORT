@@ -434,12 +434,17 @@ function Field({ label, className = "", children }: { label: string; className?:
 }
 
 function PaymentSearchForm({ tab, defaultValue, pendingOnly }: { tab: "tt" | "lc"; defaultValue: string; pendingOnly: boolean }) {
+  const placeholder =
+    tab === "tt"
+      ? "국가, 바이어, REF No., 생산의뢰번호, INV No."
+      : "국가, 바이어, 생산의뢰번호, LC No.";
+
   return (
     <form className="mt-4 flex items-end gap-3 rounded-md border border-slate-200 bg-slate-50 p-4">
       <input type="hidden" name="tab" value={tab} />
       <div className="field min-w-96">
         <label>검색</label>
-        <input name="q" defaultValue={defaultValue} placeholder="국가, 바이어, REF No., 생산의뢰번호, INV No., LC No." />
+        <input name="q" defaultValue={defaultValue} placeholder={placeholder} />
       </div>
       <button className="btn h-11">검색</button>
       <label className="flex h-11 items-center gap-2 self-end whitespace-nowrap text-sm font-medium text-slate-700">

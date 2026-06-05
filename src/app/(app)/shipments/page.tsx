@@ -162,7 +162,7 @@ export default async function ShipmentsPage({ searchParams }: { searchParams: Pr
           <input type="hidden" name="view" value={view} />
           <div className="field min-w-96">
             <label>검색</label>
-            <input name="q" defaultValue={q ?? ""} placeholder="국가, 거래처, 제품명, PI No., INV No." />
+            <input name="q" defaultValue={q ?? ""} placeholder="수출국, 바이어, 제품명, PI No., INV No." />
           </div>
           <div className="field">
             <label>상태</label>
