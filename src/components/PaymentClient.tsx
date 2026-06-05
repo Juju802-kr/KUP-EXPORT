@@ -238,17 +238,18 @@ function TTSection({
         <h2 className="text-base font-semibold">T/T 입금 관리 목록</h2>
         <PaymentSearchForm tab="tt" defaultValue={searchQuery} pendingOnly={pendingOnly} />
         <div className="mt-3 divide-y divide-slate-100">
-          <div className="grid grid-cols-[110px_120px_140px_130px_1fr_1fr_auto] items-center gap-3 py-2 text-xs font-medium text-slate-500">
+          <div className="grid grid-cols-[110px_120px_140px_130px_1fr_1fr_180px_auto] items-center gap-3 py-2 text-xs font-medium text-slate-500">
             <span>영업담당자</span>
             <span>국가</span>
             <span>바이어</span>
             <span>금액</span>
             <span>생산의뢰번호</span>
             <span>INV No.</span>
+            <span>첨부파일</span>
             <span />
           </div>
           {payments.map((payment) => (
-            <div key={payment.id} className="grid grid-cols-[110px_120px_140px_130px_1fr_1fr_auto] items-center gap-3 py-3 text-sm">
+            <div key={payment.id} className="grid grid-cols-[110px_120px_140px_130px_1fr_1fr_180px_auto] items-center gap-3 py-3 text-sm">
               <RowButton onClick={() => startEdit(payment)}>{payment.salesOwner || "-"}</RowButton>
               <RowButton onClick={() => startEdit(payment)}>{payment.exportCountry || "-"}</RowButton>
               <RowButton onClick={() => startEdit(payment)}>{payment.buyer || "-"}</RowButton>
@@ -257,6 +258,7 @@ function TTSection({
               </button>
               <RowButton onClick={() => startEdit(payment)}>{payment.productionRequestNo || "-"}</RowButton>
               <RowButton onClick={() => startEdit(payment)}>{payment.invNo || "-"}</RowButton>
+              <AttachmentLinks files={attachments.filter((file) => file.ownerId === payment.id)} />
               <DeletePaymentForm id={payment.id} type="tt" />
             </div>
           ))}
@@ -387,7 +389,7 @@ function LCSection({
         <h2 className="text-base font-semibold">L/C 통지 관리 목록</h2>
         <PaymentSearchForm tab="lc" defaultValue={searchQuery} pendingOnly={pendingOnly} />
         <div className="mt-3 divide-y divide-slate-100">
-          <div className="grid grid-cols-[110px_110px_130px_130px_1fr_1fr_1fr_auto] items-center gap-3 py-2 text-xs font-medium text-slate-500">
+          <div className="grid grid-cols-[110px_110px_130px_130px_1fr_1fr_1fr_180px_auto] items-center gap-3 py-2 text-xs font-medium text-slate-500">
             <span>영업담당자</span>
             <span>국가</span>
             <span>바이어</span>
@@ -395,10 +397,11 @@ function LCSection({
             <span>생산의뢰번호</span>
             <span>LC No.</span>
             <span>LC S/D</span>
+            <span>첨부파일</span>
             <span />
           </div>
           {payments.map((payment) => (
-            <div key={payment.id} className="grid grid-cols-[110px_110px_130px_130px_1fr_1fr_1fr_auto] items-center gap-3 py-3 text-sm">
+            <div key={payment.id} className="grid grid-cols-[110px_110px_130px_130px_1fr_1fr_1fr_180px_auto] items-center gap-3 py-3 text-sm">
               <RowButton onClick={() => startEdit(payment)}>{payment.salesOwner || "-"}</RowButton>
               <RowButton onClick={() => startEdit(payment)}>{payment.exportCountry || "-"}</RowButton>
               <RowButton onClick={() => startEdit(payment)}>{payment.buyer || "-"}</RowButton>
@@ -408,6 +411,7 @@ function LCSection({
               <RowButton onClick={() => startEdit(payment)}>{payment.productionRequestNo || "-"}</RowButton>
               <RowButton onClick={() => startEdit(payment)}>{payment.lcNo || "-"}</RowButton>
               <RowButton onClick={() => startEdit(payment)} muted>{payment.lcSd || "-"}</RowButton>
+              <AttachmentLinks files={attachments.filter((file) => file.ownerId === payment.id)} />
               <DeletePaymentForm id={payment.id} type="lc" />
             </div>
           ))}
