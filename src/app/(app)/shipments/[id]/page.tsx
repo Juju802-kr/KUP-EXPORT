@@ -15,7 +15,7 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
   if (!shipment) return <div>선적의뢰를 찾을 수 없습니다.</div>;
 
   const productionNos = shipment.products.map((product) => product.productionRequestNo).filter(Boolean) as string[];
-  const [lcs, productAttachments] = await Promise.all([
+  const [lcs, productAttachments, buyerMaster] = await Promise.all([
     productionNos.length || shipment.linkedLcId
       ? prisma.paymentLC.findMany({
           where: {
@@ -32,8 +32,20 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
           where: { ownerType: AttachmentOwnerType.SHIPMENT_PRODUCT, ownerId: { in: shipment.products.map((product) => product.id) } },
           orderBy: { createdAt: "desc" }
         })
-      : []
+      : [],
+    shipment.buyer
+      ? prisma.buyerMaster.findFirst({
+          where: { buyerName: shipment.buyer },
+          orderBy: { updatedAt: "desc" }
+        })
+      : null
   ]);
+  const buyerAttachments = buyerMaster
+    ? await prisma.attachment.findMany({
+        where: { ownerType: AttachmentOwnerType.BUYER_MASTER, ownerId: buyerMaster.id },
+        orderBy: { createdAt: "desc" }
+      })
+    : [];
 
   const optionValues = (category: DropdownCategory) =>
     dropdowns
@@ -131,6 +143,23 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
         mimeType: file.mimeType
       }))}
       productAttachments={productAttachments.map((file) => ({
+        id: file.id,
+        ownerId: file.ownerId,
+        originalName: file.originalName,
+        path: file.path,
+        mimeType: file.mimeType
+      }))}
+      buyerNote={
+        buyerMaster
+          ? {
+              id: buyerMaster.id,
+              buyerName: buyerMaster.buyerName,
+              specialNote: buyerMaster.specialNote,
+              specialNoteUpdatedAt: buyerMaster.specialNoteUpdatedAt?.toISOString() ?? null
+            }
+          : null
+      }
+      buyerAttachments={buyerAttachments.map((file) => ({
         id: file.id,
         ownerId: file.ownerId,
         originalName: file.originalName,

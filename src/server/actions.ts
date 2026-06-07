@@ -1113,6 +1113,24 @@ export async function sendProductCoaMailAction(formData: FormData) {
   );
 }
 
+export async function updateBuyerSpecialNoteAction(formData: FormData) {
+  const user = await requireUser();
+  const buyerId = formString(formData, "buyerId");
+  const shipmentId = formString(formData, "shipmentId");
+  if (!buyerId) fail(`/shipments/${shipmentId}`, "바이어 정보를 찾을 수 없습니다.");
+  await prisma.buyerMaster.update({
+    where: { id: buyerId },
+    data: {
+      specialNote: formString(formData, "specialNote"),
+      specialNoteUpdatedAt: new Date(),
+      updatedById: user.id
+    }
+  });
+  await saveAttachments(formData.getAll("files").filter((file): file is File => file instanceof File), "BUYER_MASTER", buyerId, user.id);
+  revalidatePath(`/shipments/${shipmentId}`);
+  redirect(`/shipments/${shipmentId}?success=${encodeURIComponent("바이어 특이사항이 저장되었습니다.")}`);
+}
+
 const noticeMailTeams: Team[] = [Team.OVERSEAS_MARKETING, Team.OVERSEAS_SALES, Team.OVERSEAS_SALES_SUPPORT];
 const salesMailTeams: Team[] = [Team.OVERSEAS_MARKETING, Team.OVERSEAS_SALES, Team.OVERSEAS_BRANCH];
 const exportOwnerTeams: Team[] = [Team.OVERSEAS_SALES_SUPPORT];

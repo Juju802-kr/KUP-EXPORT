@@ -69,6 +69,7 @@ enum AttachmentOwnerType {
   PAYMENT_TT
   PAYMENT_LC
   NOTICE
+  BUYER_MASTER
 }
 
 model User {
@@ -117,6 +118,8 @@ model BuyerMaster {
   exportEmailRecipients String?
   branchEmailRecipients String?
   contactPerson         String?
+  specialNote           String?
+  specialNoteUpdatedAt  DateTime?
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
   createdById           String?

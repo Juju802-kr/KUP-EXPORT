@@ -2,11 +2,11 @@
 
 import { Factory, ShipmentStatus } from "@prisma/client";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { DeleteButton } from "@/components/DeleteButton";
 import { SearchableCombobox } from "@/components/SearchableCombobox";
-import { createProductAction, deleteProductAction, deleteShipmentAction, sendProductCoaMailAction, sendShipmentQuoteMailAction, sendShipmentRequestMailAction, sendShipmentScheduleMailAction, updateProductAction, updateShipmentAction } from "@/server/actions";
+import { createProductAction, deleteProductAction, deleteShipmentAction, sendProductCoaMailAction, sendShipmentQuoteMailAction, sendShipmentRequestMailAction, sendShipmentScheduleMailAction, updateBuyerSpecialNoteAction, updateProductAction, updateShipmentAction } from "@/server/actions";
 
 type Option = { id: string; value: string; label: string };
 type Options = {
@@ -22,6 +22,7 @@ type Options = {
 type ProductMaster = { id: string; name: string; costGroupCode: string | null; factory: Factory | null };
 type Attachment = { id: string; ownerId: string; originalName: string; path: string; mimeType: string | null };
 type LcRow = { id: string; lcNo: string | null; productionRequestNo: string | null; lcSd: string | null; buyer: string | null };
+type BuyerNote = { id: string; buyerName: string; specialNote: string | null; specialNoteUpdatedAt: string | null };
 type ProductRow = {
   id: string;
   productMasterId: string | null;
@@ -109,6 +110,8 @@ export function ShipmentDetailEditor({
   productMasters,
   shipmentAttachments,
   productAttachments,
+  buyerNote,
+  buyerAttachments,
   lcs
 }: {
   shipment: ShipmentValue;
@@ -116,6 +119,8 @@ export function ShipmentDetailEditor({
   productMasters: ProductMaster[];
   shipmentAttachments: Attachment[];
   productAttachments: Attachment[];
+  buyerNote: BuyerNote | null;
+  buyerAttachments: Attachment[];
   lcs: LcRow[];
 }) {
   const [editingProduct, setEditingProduct] = useState<ProductRow | null>(null);
@@ -124,6 +129,7 @@ export function ShipmentDetailEditor({
   const productAction = editingProduct ? updateProductAction : createProductAction;
   const summary = useMemo(() => shipmentSummary(shipment), [shipment]);
   const [statusValue, setStatusValue] = useState<ShipmentStatus>(shipment.status);
+  const [showBuyerNote, setShowBuyerNote] = useState(false);
   const shipmentRequestDefault = shipment.emailSent?.includes("SHIPMENT_REQUEST_SENT") ? "update" : "new";
   const scheduleMailDefault = shipment.emailSent?.includes("SCHEDULE_MAIL_SENT") ? "change" : "new";
 
@@ -253,6 +259,15 @@ export function ShipmentDetailEditor({
                   </>
                 ) : null}
               </div>
+              <button
+                type="button"
+                className="h-10 rounded-md border border-violet-200 bg-violet-50 px-4 text-sm font-semibold text-violet-700 hover:bg-violet-100"
+                onClick={() => setShowBuyerNote(true)}
+                disabled={!buyerNote}
+                title={buyerNote ? `${buyerNote.buyerName} 특이사항` : "바이어 마스터가 없습니다"}
+              >
+                바이어
+              </button>
             </div>
 
             <Box title="선적 관리란" columns={1}>
@@ -291,6 +306,15 @@ export function ShipmentDetailEditor({
       <form id="delete-shipment-form" action={deleteShipmentAction}>
         <input type="hidden" name="id" value={shipment.id} />
       </form>
+
+      {showBuyerNote && buyerNote ? (
+        <BuyerSpecialNotePopup
+          shipmentId={shipment.id}
+          buyerNote={buyerNote}
+          files={buyerAttachments}
+          onClose={() => setShowBuyerNote(false)}
+        />
+      ) : null}
 
       <Box title="제품 LIST" columns={1}>
         <div className="space-y-2">
@@ -355,6 +379,76 @@ function Box({ title, children, columns = 3 }: { title: string; children: ReactN
       <h2 className="mb-4 text-base font-semibold text-slate-950">{title}</h2>
       <div className={grid}>{children}</div>
     </section>
+  );
+}
+
+function BuyerSpecialNotePopup({
+  shipmentId,
+  buyerNote,
+  files,
+  onClose
+}: {
+  shipmentId: string;
+  buyerNote: BuyerNote;
+  files: Attachment[];
+  onClose: () => void;
+}) {
+  const editorRef = useRef<HTMLDivElement>(null);
+  const [html, setHtml] = useState(buyerNote.specialNote ?? "");
+
+  function runCommand(command: string, value?: string) {
+    editorRef.current?.focus();
+    document.execCommand(command, false, value);
+    setHtml(editorRef.current?.innerHTML ?? "");
+  }
+
+  return (
+    <div className="fixed right-8 top-32 z-50 w-[720px] max-w-[calc(100vw-2rem)] rounded-lg border border-violet-200 bg-white shadow-2xl">
+      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-950">바이어 특이사항</h3>
+          <p className="mt-0.5 text-xs text-slate-500">
+            {buyerNote.buyerName}
+            {buyerNote.specialNoteUpdatedAt ? ` · ${buyerNote.specialNoteUpdatedAt.slice(0, 10)} 수정` : ""}
+          </p>
+        </div>
+        <button type="button" className="rounded-md px-2 py-1 text-lg font-semibold text-slate-500 hover:bg-slate-100" onClick={onClose}>
+          ×
+        </button>
+      </div>
+      <form action={updateBuyerSpecialNoteAction} className="space-y-3 p-4">
+        <input type="hidden" name="shipmentId" value={shipmentId} />
+        <input type="hidden" name="buyerId" value={buyerNote.id} />
+        <input type="hidden" name="specialNote" value={html} />
+        <div className="flex flex-wrap items-center gap-1 rounded-md border border-slate-200 bg-slate-50 p-2">
+          <button type="button" className="btn h-8 px-3 font-bold" onClick={() => runCommand("bold")}>B</button>
+          <button type="button" className="btn h-8 px-3 italic" onClick={() => runCommand("italic")}>I</button>
+          <button type="button" className="btn h-8 px-3" onClick={() => runCommand("insertUnorderedList")}>목록</button>
+          <button type="button" className="btn h-8 px-3" onClick={() => runCommand("insertOrderedList")}>번호</button>
+          <label className="ml-1 flex h-8 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-600">
+            색상
+            <input type="color" className="h-5 w-7 border-0 bg-transparent p-0" onChange={(event) => runCommand("foreColor", event.target.value)} />
+          </label>
+        </div>
+        <div
+          ref={editorRef}
+          contentEditable
+          suppressContentEditableWarning
+          className="min-h-56 rounded-md border border-slate-300 bg-white p-4 text-sm leading-7 text-slate-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+          dangerouslySetInnerHTML={{ __html: buyerNote.specialNote ?? "" }}
+          onInput={(event) => setHtml(event.currentTarget.innerHTML)}
+        />
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">첨부파일</label>
+          <input name="files" type="file" multiple className="w-full rounded-md border border-slate-300 bg-white px-3 py-2" />
+          <AttachmentLinks files={files} />
+        </div>
+        <div className="flex justify-end gap-2">
+          <button type="button" className="btn px-5" onClick={onClose}>닫기</button>
+          <button className="btn-primary px-5">수정</button>
+        </div>
+      </form>
+    </div>
   );
 }
 
