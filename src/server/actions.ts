@@ -98,7 +98,7 @@ export async function registerAction(formData: FormData) {
   const exists = await prisma.user.findUnique({ where: { email } });
   if (exists) fail("/register", "이미 가입된 이메일입니다.");
   const user = await prisma.user.create({ data: { team, name, email, passwordHash: await hashPassword(password) } });
-  await createSession(user.id);
+  await createSession(user);
   redirect("/shipments");
 }
 
@@ -109,7 +109,7 @@ export async function loginAction(formData: FormData) {
   const autoLogin = formData.get("autoLogin") === "on";
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user || !(await verifyPassword(password, user.passwordHash))) fail("/login", "이메일 또는 비밀번호가 올바르지 않습니다.");
-  await createSession(user.id, autoLogin);
+  await createSession(user, autoLogin);
   redirect("/shipments");
 }
 
@@ -119,7 +119,9 @@ export async function logoutAction() {
 }
 
 export async function changePasswordAction(formData: FormData) {
-  const user = await requireUser();
+  const sessionUser = await requireUser();
+  const user = await prisma.user.findUnique({ where: { id: sessionUser.id } });
+  if (!user) redirect("/login");
   const currentPassword = formString(formData, "currentPassword");
   const newPassword = formString(formData, "newPassword");
   const newPasswordConfirm = formString(formData, "newPasswordConfirm");
@@ -138,7 +140,9 @@ export async function changePasswordAction(formData: FormData) {
 }
 
 export async function deleteAccountAction(formData: FormData) {
-  const user = await requireUser();
+  const sessionUser = await requireUser();
+  const user = await prisma.user.findUnique({ where: { id: sessionUser.id } });
+  if (!user) redirect("/login");
   const currentPassword = formString(formData, "currentPassword");
 
   if (!currentPassword) fail("/admin", "현재 비밀번호를 입력해주세요.");
@@ -411,9 +415,11 @@ export async function createProductAction(formData: FormData) {
   const shipmentId = formString(formData, "shipmentId");
   const data = readProductForm(formData, user.id);
   const product = await prisma.shipmentProduct.create({ data: { ...data, shipmentId } });
-  await saveAttachments(formData.getAll("files").filter((f): f is File => f instanceof File), "SHIPMENT_PRODUCT", product.id, user.id);
-  await recalcShipmentInvoice(shipmentId);
-  await autoLinkShipmentLc(shipmentId, user.id);
+  await Promise.all([
+    saveAttachments(formData.getAll("files").filter((f): f is File => f instanceof File), "SHIPMENT_PRODUCT", product.id, user.id),
+    recalcShipmentInvoice(shipmentId),
+    autoLinkShipmentLc(shipmentId, user.id)
+  ]);
   revalidatePath(`/shipments/${shipmentId}`);
   redirect(`/shipments/${shipmentId}`);
 }
@@ -424,9 +430,11 @@ export async function updateProductAction(formData: FormData) {
   const shipmentId = formString(formData, "shipmentId");
   const data = readProductForm(formData, user.id);
   await prisma.shipmentProduct.update({ where: { id }, data: { ...omitCreatedBy(data), updatedById: user.id } });
-  await saveAttachments(formData.getAll("files").filter((f): f is File => f instanceof File), "SHIPMENT_PRODUCT", id, user.id);
-  await recalcShipmentInvoice(shipmentId);
-  await autoLinkShipmentLc(shipmentId, user.id);
+  await Promise.all([
+    saveAttachments(formData.getAll("files").filter((f): f is File => f instanceof File), "SHIPMENT_PRODUCT", id, user.id),
+    recalcShipmentInvoice(shipmentId),
+    autoLinkShipmentLc(shipmentId, user.id)
+  ]);
   revalidatePath(`/shipments/${shipmentId}`);
   redirect(`/shipments/${shipmentId}`);
 }
@@ -436,8 +444,7 @@ export async function deleteProductAction(formData: FormData) {
   const id = formString(formData, "id");
   const shipmentId = formString(formData, "shipmentId");
   await prisma.shipmentProduct.delete({ where: { id } });
-  await recalcShipmentInvoice(shipmentId);
-  await autoLinkShipmentLc(shipmentId, user.id);
+  await Promise.all([recalcShipmentInvoice(shipmentId), autoLinkShipmentLc(shipmentId, user.id)]);
   revalidatePath(`/shipments/${shipmentId}`);
   redirect(`/shipments/${shipmentId}`);
 }
@@ -538,8 +545,10 @@ async function savePaymentTT(formData: FormData, intent: string) {
   const data = readPaymentTTForm(formData, user.id);
   const allocations = readPaymentTTAllocations(formData, Number(data.amount), id);
   const payment = id ? await prisma.paymentTT.update({ where: { id }, data: omitCreatedBy(data) }) : await prisma.paymentTT.create({ data });
-  await savePaymentTTAllocations(payment.id, allocations);
-  await saveAttachments(formData.getAll("files").filter((f): f is File => f instanceof File), "PAYMENT_TT", payment.id, user.id);
+  await Promise.all([
+    savePaymentTTAllocations(payment.id, allocations),
+    saveAttachments(formData.getAll("files").filter((f): f is File => f instanceof File), "PAYMENT_TT", payment.id, user.id)
+  ]);
   if (intent === "notify") emailQueueRedirect("/payments?tab=tt", () => sendPaymentTtNotifyMail(payment.id, user.id));
   if (intent === "confirm") emailQueueRedirect("/payments?tab=tt", () => sendPaymentTtConfirmMail(payment.id, user.id));
   revalidatePath("/payments");
@@ -564,8 +573,10 @@ async function savePaymentLC(formData: FormData, intent: string) {
   const data = readPaymentLCForm(formData, user.id);
   const allocations = readPaymentLCAllocations(formData, Number(data.amount), id);
   const payment = id ? await prisma.paymentLC.update({ where: { id }, data: omitCreatedBy(data) }) : await prisma.paymentLC.create({ data });
-  await savePaymentLCAllocations(payment.id, allocations);
-  await saveAttachments(formData.getAll("files").filter((f): f is File => f instanceof File), "PAYMENT_LC", payment.id, user.id);
+  await Promise.all([
+    savePaymentLCAllocations(payment.id, allocations),
+    saveAttachments(formData.getAll("files").filter((f): f is File => f instanceof File), "PAYMENT_LC", payment.id, user.id)
+  ]);
   await autoLinkLcToShipments(payment.id, user.id);
   if (intent === "notify") emailQueueRedirect("/payments?tab=lc", () => sendPaymentLcNotifyMail(payment.id, user.id));
   if (intent === "confirm") emailQueueRedirect("/payments?tab=lc", () => sendPaymentLcConfirmMail(payment.id, user.id));
