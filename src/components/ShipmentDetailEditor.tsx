@@ -394,17 +394,19 @@ function BuyerSpecialNotePopup({
   onClose: () => void;
 }) {
   const editorRef = useRef<HTMLDivElement>(null);
-  const [html, setHtml] = useState(buyerNote.specialNote ?? "");
+  const hiddenInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (editorRef.current) editorRef.current.innerHTML = buyerNote.specialNote ?? "";
-    setHtml(buyerNote.specialNote ?? "");
   }, [buyerNote.id, buyerNote.specialNote]);
 
   function runCommand(command: string, value?: string) {
     editorRef.current?.focus();
     document.execCommand(command, false, value);
-    setHtml(editorRef.current?.innerHTML ?? "");
+  }
+
+  function prepareSubmit() {
+    if (hiddenInputRef.current) hiddenInputRef.current.value = editorRef.current?.innerHTML ?? "";
   }
 
   return (
@@ -421,26 +423,32 @@ function BuyerSpecialNotePopup({
           ×
         </button>
       </div>
-      <form action={updateBuyerSpecialNoteAction} className="space-y-3 p-4">
+      <form action={updateBuyerSpecialNoteAction} className="space-y-3 p-4" onSubmit={prepareSubmit}>
         <input type="hidden" name="shipmentId" value={shipmentId} />
         <input type="hidden" name="buyerId" value={buyerNote.id} />
-        <input type="hidden" name="specialNote" value={html} />
+        <input ref={hiddenInputRef} type="hidden" name="specialNote" defaultValue={buyerNote.specialNote ?? ""} />
         <div className="flex flex-wrap items-center gap-1 rounded-md border border-slate-200 bg-slate-50 p-2">
-          <button type="button" className="btn h-8 px-3 font-bold" onClick={() => runCommand("bold")}>B</button>
-          <button type="button" className="btn h-8 px-3 italic" onClick={() => runCommand("italic")}>I</button>
-          <button type="button" className="btn h-8 px-3" onClick={() => runCommand("insertUnorderedList")}>목록</button>
-          <button type="button" className="btn h-8 px-3" onClick={() => runCommand("insertOrderedList")}>번호</button>
+          <button type="button" className="btn h-8 px-3 font-bold" onMouseDown={(event) => event.preventDefault()} onClick={() => runCommand("bold")}>B</button>
+          <button type="button" className="btn h-8 px-3 italic" onMouseDown={(event) => event.preventDefault()} onClick={() => runCommand("italic")}>I</button>
+          <button type="button" className="btn h-8 px-3" onMouseDown={(event) => event.preventDefault()} onClick={() => runCommand("insertUnorderedList")}>목록</button>
+          <button type="button" className="btn h-8 px-3" onMouseDown={(event) => event.preventDefault()} onClick={() => runCommand("insertOrderedList")}>번호</button>
           <label className="ml-1 flex h-8 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-600">
             색상
-            <input type="color" className="!h-5 !w-7 border-0 bg-transparent p-0" onChange={(event) => runCommand("foreColor", event.target.value)} />
+            <input
+              type="color"
+              className="border-0 bg-transparent"
+              style={{ width: 28, height: 20, minWidth: 28, padding: 0 }}
+              onChange={(event) => runCommand("foreColor", event.target.value)}
+            />
           </label>
         </div>
         <div
           ref={editorRef}
           contentEditable
           suppressContentEditableWarning
-          className="min-h-56 rounded-md border border-slate-300 bg-white p-4 text-sm leading-7 text-slate-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
-          onInput={(event) => setHtml(event.currentTarget.innerHTML)}
+          role="textbox"
+          tabIndex={0}
+          className="min-h-56 cursor-text rounded-md border border-slate-300 bg-white p-4 text-sm leading-7 text-slate-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
         />
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">첨부파일</label>
