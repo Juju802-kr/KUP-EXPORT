@@ -432,11 +432,12 @@ export async function updateProductAction(formData: FormData) {
 }
 
 export async function deleteProductAction(formData: FormData) {
-  await requireUser();
+  const user = await requireUser();
   const id = formString(formData, "id");
   const shipmentId = formString(formData, "shipmentId");
   await prisma.shipmentProduct.delete({ where: { id } });
   await recalcShipmentInvoice(shipmentId);
+  await autoLinkShipmentLc(shipmentId, user.id);
   revalidatePath(`/shipments/${shipmentId}`);
   redirect(`/shipments/${shipmentId}`);
 }
@@ -484,21 +485,26 @@ async function autoLinkShipmentLc(shipmentId: string, userId: string) {
     select: { productionRequestNo: true }
   });
   const productionNos = [...new Set(products.map((product) => product.productionRequestNo).filter(Boolean) as string[])];
-  if (!productionNos.length) return;
-  const lcs = await prisma.paymentLC.findMany({
-    where: {
-      productionRequestNo: { in: productionNos },
-      AND: [{ lcSd: { not: null } }, { lcSd: { not: "" } }]
-    }
-  });
-  const lc = lcs.sort((a, b) => lcKindPriority(b.kind) - lcKindPriority(a.kind) || b.createdAt.getTime() - a.createdAt.getTime())[0];
-  if (!lc) return;
-  await prisma.lcShipmentLink.deleteMany({ where: { shipmentId } });
-  await prisma.lcShipmentLink.create({ data: { shipmentId, lcId: lc.id, createdById: userId } });
-  await prisma.shipmentRequest.update({
-    where: { id: shipmentId },
-    data: { linkedLcId: lc.id, lcSd: lc.lcSd, updatedById: userId }
-  });
+  const lcs = productionNos.length
+    ? await prisma.paymentLC.findMany({
+        where: {
+          OR: [
+            { productionRequestNo: { in: productionNos } },
+            { allocations: { some: { productionRequestNo: { in: productionNos } } } }
+          ]
+        }
+      })
+    : [];
+  const sortedLcs = lcs.sort((a, b) => lcKindPriority(b.kind) - lcKindPriority(a.kind) || b.createdAt.getTime() - a.createdAt.getTime());
+  const lc = sortedLcs.find((row) => row.lcSd) ?? sortedLcs[0];
+  await prisma.$transaction([
+    prisma.lcShipmentLink.deleteMany({ where: { shipmentId } }),
+    ...(lc ? [prisma.lcShipmentLink.create({ data: { shipmentId, lcId: lc.id, createdById: userId } })] : []),
+    prisma.shipmentRequest.update({
+      where: { id: shipmentId },
+      data: { linkedLcId: lc?.id ?? null, lcSd: lc?.lcSd ?? "", updatedById: userId }
+    })
+  ]);
 }
 
 async function autoLinkLcToShipments(paymentLcId: string, userId: string) {

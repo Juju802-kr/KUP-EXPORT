@@ -1,4 +1,4 @@
-import { AttachmentOwnerType, DropdownCategory } from "@prisma/client";
+import { AttachmentOwnerType, DropdownCategory, PaymentLcKind } from "@prisma/client";
 import { ShipmentDetailEditor } from "@/components/ShipmentDetailEditor";
 import { fmtDate, fmtDateTimeLocal } from "@/lib/constants";
 import { prisma } from "@/lib/prisma";
@@ -16,12 +16,12 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
 
   const productionNos = shipment.products.map((product) => product.productionRequestNo).filter(Boolean) as string[];
   const [lcs, productAttachments, buyerMaster, exportProductNames] = await Promise.all([
-    productionNos.length || shipment.linkedLcId
+    productionNos.length
       ? prisma.paymentLC.findMany({
           where: {
             OR: [
-              ...(productionNos.length ? [{ productionRequestNo: { in: productionNos } }] : []),
-              ...(shipment.linkedLcId ? [{ id: shipment.linkedLcId }] : [])
+              { productionRequestNo: { in: productionNos } },
+              { allocations: { some: { productionRequestNo: { in: productionNos } } } }
             ]
           },
           orderBy: { createdAt: "desc" }
@@ -58,14 +58,19 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
       .filter((option) => option.category === category)
       .map((option) => ({ id: option.id, value: option.value, label: option.label }));
 
-  const autoLinkedLc = shipment.linkedLcId ? lcs.find((lc) => lc.id === shipment.linkedLcId) : lcs[0];
-  if (!shipment.linkedLcId && autoLinkedLc) {
-    await prisma.lcShipmentLink.deleteMany({ where: { shipmentId: shipment.id } });
-    await prisma.lcShipmentLink.create({ data: { shipmentId: shipment.id, lcId: autoLinkedLc.id, createdById: shipment.updatedById } });
-    await prisma.shipmentRequest.update({
-      where: { id: shipment.id },
-      data: { linkedLcId: autoLinkedLc.id, lcSd: autoLinkedLc.lcSd, updatedById: shipment.updatedById }
-    });
+  const sortedLcs = lcs.sort((a, b) => lcKindPriority(b.kind) - lcKindPriority(a.kind) || b.createdAt.getTime() - a.createdAt.getTime());
+  const autoLinkedLc = sortedLcs.find((lc) => lc.lcSd) ?? sortedLcs[0];
+  if (shipment.linkedLcId !== (autoLinkedLc?.id ?? null) || (shipment.lcSd ?? "") !== (autoLinkedLc?.lcSd ?? "")) {
+    await prisma.$transaction([
+      prisma.lcShipmentLink.deleteMany({ where: { shipmentId: shipment.id } }),
+      ...(autoLinkedLc
+        ? [prisma.lcShipmentLink.create({ data: { shipmentId: shipment.id, lcId: autoLinkedLc.id, createdById: shipment.updatedById } })]
+        : []),
+      prisma.shipmentRequest.update({
+        where: { id: shipment.id },
+        data: { linkedLcId: autoLinkedLc?.id ?? null, lcSd: autoLinkedLc?.lcSd ?? "", updatedById: shipment.updatedById }
+      })
+    ]);
   }
 
   return (
@@ -100,7 +105,7 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
         invoiceValue: Number(shipment.invoiceValue),
         freightTotal: Number(shipment.freightTotal),
         dispatchNote: shipment.dispatchNote,
-        linkedLcId: shipment.linkedLcId ?? autoLinkedLc?.id ?? null,
+        linkedLcId: autoLinkedLc?.id ?? null,
         products: shipment.products.map((product) => ({
           id: product.id,
           productMasterId: product.productMasterId,
@@ -188,4 +193,16 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
       }))}
     />
   );
+}
+
+function lcKindPriority(kind: PaymentLcKind) {
+  return {
+    OPEN: 0,
+    AMEND: 1,
+    AMEND_1ST: 1,
+    AMEND_2ND: 2,
+    AMEND_3RD: 3,
+    AMEND_4TH: 4,
+    AMEND_5TH: 5
+  }[kind] ?? 0;
 }

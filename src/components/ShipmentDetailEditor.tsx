@@ -767,13 +767,18 @@ function LcConnect({ linkedLcId, lcs }: { linkedLcId: string | null; lcs: LcRow[
   if (linkedLcId) {
     const linkedLc = lcs.find((lc) => lc.id === linkedLcId);
     return (
-      <Link href={`/payments?tab=lc&edit=${linkedLcId}`} className="block rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-blue-700 hover:border-blue-300 hover:bg-blue-50">
+      <Link
+        href={`/payments?tab=lc&edit=${linkedLcId}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-blue-700 hover:border-blue-300 hover:bg-blue-50"
+      >
         L/C {linkedLc?.lcNo || "-"} / {linkedLc?.productionRequestNo || "-"} / {linkedLc?.lcSd || "-"}
       </Link>
     );
   }
 
-  if (!lcs.length) return <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500">동일 생산의뢰번호 L/C 없음</div>;
+  if (!lcs.length) return <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500">현재 생산의뢰번호에 연결된 L/C가 없습니다.</div>;
 
   return <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500">저장하면 동일 생산의뢰번호 L/C가 자동 연결됩니다.</div>;
 }
