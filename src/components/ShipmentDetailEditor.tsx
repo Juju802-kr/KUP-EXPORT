@@ -396,6 +396,11 @@ function BuyerSpecialNotePopup({
   const editorRef = useRef<HTMLDivElement>(null);
   const [html, setHtml] = useState(buyerNote.specialNote ?? "");
 
+  useEffect(() => {
+    if (editorRef.current) editorRef.current.innerHTML = buyerNote.specialNote ?? "";
+    setHtml(buyerNote.specialNote ?? "");
+  }, [buyerNote.id, buyerNote.specialNote]);
+
   function runCommand(command: string, value?: string) {
     editorRef.current?.focus();
     document.execCommand(command, false, value);
@@ -427,7 +432,7 @@ function BuyerSpecialNotePopup({
           <button type="button" className="btn h-8 px-3" onClick={() => runCommand("insertOrderedList")}>번호</button>
           <label className="ml-1 flex h-8 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-600">
             색상
-            <input type="color" className="h-5 w-7 border-0 bg-transparent p-0" onChange={(event) => runCommand("foreColor", event.target.value)} />
+            <input type="color" className="!h-5 !w-7 border-0 bg-transparent p-0" onChange={(event) => runCommand("foreColor", event.target.value)} />
           </label>
         </div>
         <div
@@ -435,7 +440,6 @@ function BuyerSpecialNotePopup({
           contentEditable
           suppressContentEditableWarning
           className="min-h-56 rounded-md border border-slate-300 bg-white p-4 text-sm leading-7 text-slate-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
-          dangerouslySetInnerHTML={{ __html: buyerNote.specialNote ?? "" }}
           onInput={(event) => setHtml(event.currentTarget.innerHTML)}
         />
         <div>
