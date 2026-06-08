@@ -217,6 +217,7 @@ model ShipmentProduct {
   bxQtyFoc              Int             @default(0)
   bxQtyTotal            Int             @default(0)
   changeNote            String?
+  coaUploadRequestDate  DateTime?
   normalBoxQty          Int             @default(0)
   iceBoxQty             Int             @default(0)
   injectionBoxQty       Int             @default(0)

@@ -44,6 +44,7 @@ type ProductRow = {
   commonBoxQty: number;
   grossWeight: unknown;
   changeNote: string | null;
+  coaUploadRequestDate: string;
   exportEmailRecipients: string | null;
 };
 type ShipmentValue = {
@@ -101,6 +102,7 @@ const emptyProduct: ProductRow = {
   commonBoxQty: 0,
   grossWeight: "",
   changeNote: "",
+  coaUploadRequestDate: "",
   exportEmailRecipients: ""
 };
 
@@ -354,9 +356,10 @@ export function ShipmentDetailEditor({
           <ProductInput label="배치번호" name="lotNo" value={productFormValue.lotNo} />
           <ReadonlyProductBox label="박스 수량 합계" value={formatNumberInput(productFormValue.bxQtyTotal || "")} />
           <ProductInput label="GW" name="grossWeight" type="number" step="0.01" value={productFormValue.grossWeight} />
-          <div className="col-span-3">
+          <div className="col-span-2">
             <ProductTextarea label="COA 요청사항" name="changeNote" value={productFormValue.changeNote} />
           </div>
+          <ProductInput label="업로드 요청일" name="coaUploadRequestDate" type="date" value={productFormValue.coaUploadRequestDate} />
           <div className="col-span-3 grid grid-cols-[1fr_auto_auto_auto] gap-2">
             <LcConnect linkedLcId={shipment.linkedLcId} lcs={shipment.linkedLcId ? lcs : matchingLcs(lcs, productFormValue.productionRequestNo)} />
             <button formAction={sendProductCoaMailAction} className="btn px-5">COA 메일</button>

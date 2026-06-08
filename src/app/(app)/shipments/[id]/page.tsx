@@ -116,6 +116,7 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
           commonBoxQty: product.commonBoxQty,
           grossWeight: Number(product.grossWeight),
           changeNote: product.changeNote,
+          coaUploadRequestDate: fmtDate(product.coaUploadRequestDate),
           exportEmailRecipients: product.exportEmailRecipients
         }))
       }}

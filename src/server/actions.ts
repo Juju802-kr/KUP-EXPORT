@@ -460,6 +460,7 @@ function readProductForm(formData: FormData, userId: string) {
     bxQtyTotal: bxQtyPaid + bxQtyFoc,
     amount: exportUnitPrice * bxQtyPaid,
     changeNote: formString(formData, "changeNote"),
+    coaUploadRequestDate: formDate(formData, "coaUploadRequestDate"),
     normalBoxQty: formNumber(formData, "normalBoxQty"),
     iceBoxQty: formNumber(formData, "iceBoxQty"),
     injectionBoxQty: formNumber(formData, "injectionBoxQty"),
@@ -1072,6 +1073,7 @@ export async function sendProductCoaMailAction(formData: FormData) {
   const exportOwnerEmails = await resolveRecipientEmails([shipment.exportOwner], exportOwnerTeams);
   const recipients = [...factoryUsers.map((item) => item.email), ...exportOwnerEmails];
   const today = fmtDate(new Date());
+  const uploadRequestDate = fmtDate(formDate(formData, "coaUploadRequestDate"));
   const factoryLabel = factory === "JEONDONG" ? "전동" : "서면";
   const cellStyle = "border:1px solid #222;padding:8px 10px;text-align:center;vertical-align:middle;";
   const body = `
@@ -1081,7 +1083,7 @@ export async function sendProductCoaMailAction(formData: FormData) {
       <table style="border-collapse:collapse;min-width:760px;">
         <thead>
           <tr>
-            <th style="${cellStyle}">요청일자</th>
+            <th style="${cellStyle}">업로드 요청일</th>
             <th style="${cellStyle}">수출국</th>
             <th style="${cellStyle}">제품명</th>
             <th style="${cellStyle}">제조번호</th>
@@ -1091,7 +1093,7 @@ export async function sendProductCoaMailAction(formData: FormData) {
         </thead>
         <tbody>
           <tr>
-            <td style="${cellStyle}">${today}</td>
+            <td style="${cellStyle}">${uploadRequestDate}</td>
             <td style="${cellStyle}">${shipment.exportCountry || ""}</td>
             <td style="${cellStyle}">${productName}</td>
             <td style="${cellStyle}">${formString(formData, "lotNo")}</td>
@@ -1105,7 +1107,7 @@ export async function sendProductCoaMailAction(formData: FormData) {
   emailQueueRedirect(`/shipments/${shipmentId}`, () =>
     sendProgramEmail({
       to: recipients,
-      subject: `${factoryLabel} 수출제품 COA 요청의 건_${productName}_${today}`,
+      subject: `${factoryLabel} 수출제품 COA 요청의 건_${productName}_${uploadRequestDate || today}`,
       body,
       html: true,
       createdById: user.id
