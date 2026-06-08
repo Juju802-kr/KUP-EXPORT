@@ -104,13 +104,9 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
         : {},
       pendingOnly
         ? {
-            OR: [
-              { productionRequestNo: null },
-              { productionRequestNo: "" },
-              { invNo: null },
-              { invNo: "" },
-              { description: null },
-              { description: "" }
+            AND: [
+              { OR: [{ productionRequestNo: null }, { productionRequestNo: "" }] },
+              { OR: [{ invNo: null }, { invNo: "" }] }
             ]
           }
         : {}
