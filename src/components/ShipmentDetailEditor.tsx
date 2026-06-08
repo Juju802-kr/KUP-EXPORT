@@ -3,10 +3,10 @@
 import { Factory, ShipmentStatus } from "@prisma/client";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { DeleteButton } from "@/components/DeleteButton";
 import { SearchableCombobox } from "@/components/SearchableCombobox";
-import { createProductAction, deleteProductAction, deleteShipmentAction, sendProductCoaMailAction, sendShipmentQuoteMailAction, sendShipmentRequestMailAction, sendShipmentScheduleMailAction, updateBuyerSpecialNoteAction, updateProductAction, updateShipmentAction } from "@/server/actions";
+import { createProductAction, deleteProductAction, deleteShipmentAction, sendProductCoaMailAction, sendShipmentQuoteMailAction, sendShipmentRequestMailAction, sendShipmentScheduleMailAction, updateProductAction, updateShipmentAction } from "@/server/actions";
 
 type Option = { id: string; value: string; label: string };
 type Options = {
@@ -263,7 +263,8 @@ export function ShipmentDetailEditor({
               </div>
               <button
                 type="button"
-                className="h-10 rounded-md border border-violet-200 bg-violet-50 px-4 text-sm font-semibold text-violet-700 hover:bg-violet-100"
+                className="h-10 rounded-md px-4 text-sm font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                style={{ backgroundColor: "#651FFF" }}
                 onClick={() => setShowBuyerNote(true)}
                 disabled={!buyerNote}
                 title={buyerNote ? `${buyerNote.buyerName} 특이사항` : "바이어 마스터가 없습니다"}
@@ -412,6 +413,23 @@ function BuyerSpecialNotePopup({
     if (hiddenInputRef.current) hiddenInputRef.current.value = editorRef.current?.innerHTML ?? "";
   }
 
+  function submitNote(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    prepareSubmit();
+    const body = new FormData(event.currentTarget);
+    onClose();
+    void fetch("/api/buyer-notes", { method: "POST", body }).catch(() => undefined);
+  }
+
+  const noteColors = [
+    { label: "빨강", value: "#dc2626" },
+    { label: "주황", value: "#f97316" },
+    { label: "핫핑크", value: "#ec4899" },
+    { label: "파랑", value: "#2563eb" },
+    { label: "초록", value: "#16a34a" },
+    { label: "보라", value: "#651FFF" }
+  ];
+
   return (
     <div className="fixed right-8 top-32 z-50 w-[720px] max-w-[calc(100vw-2rem)] rounded-lg border border-violet-200 bg-white shadow-2xl">
       <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
@@ -426,24 +444,28 @@ function BuyerSpecialNotePopup({
           ×
         </button>
       </div>
-      <form action={updateBuyerSpecialNoteAction} className="space-y-3 p-4" onSubmit={prepareSubmit}>
+      <form className="space-y-3 p-4" onSubmit={submitNote}>
         <input type="hidden" name="shipmentId" value={shipmentId} />
         <input type="hidden" name="buyerId" value={buyerNote.id} />
         <input ref={hiddenInputRef} type="hidden" name="specialNote" defaultValue={buyerNote.specialNote ?? ""} />
         <div className="flex flex-wrap items-center gap-1 rounded-md border border-slate-200 bg-slate-50 p-2">
           <button type="button" className="btn h-8 px-3 font-bold" onMouseDown={(event) => event.preventDefault()} onClick={() => runCommand("bold")}>B</button>
           <button type="button" className="btn h-8 px-3 italic" onMouseDown={(event) => event.preventDefault()} onClick={() => runCommand("italic")}>I</button>
-          <button type="button" className="btn h-8 px-3" onMouseDown={(event) => event.preventDefault()} onClick={() => runCommand("insertUnorderedList")}>목록</button>
-          <button type="button" className="btn h-8 px-3" onMouseDown={(event) => event.preventDefault()} onClick={() => runCommand("insertOrderedList")}>번호</button>
-          <label className="ml-1 flex h-8 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-600">
-            색상
-            <input
-              type="color"
-              className="border-0 bg-transparent"
-              style={{ width: 28, height: 20, minWidth: 28, padding: 0 }}
-              onChange={(event) => runCommand("foreColor", event.target.value)}
-            />
-          </label>
+          <div className="ml-2 flex h-8 items-center gap-1 rounded-md border border-slate-200 bg-white px-2">
+            <span className="mr-1 text-xs font-medium text-slate-600">색상</span>
+            {noteColors.map((color) => (
+              <button
+                key={color.value}
+                type="button"
+                aria-label={color.label}
+                title={color.label}
+                className="h-5 w-5 rounded-full border border-slate-200"
+                style={{ backgroundColor: color.value }}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => runCommand("foreColor", color.value)}
+              />
+            ))}
+          </div>
         </div>
         <div
           ref={editorRef}
@@ -460,7 +482,7 @@ function BuyerSpecialNotePopup({
         </div>
         <div className="flex justify-end gap-2">
           <button type="button" className="btn px-5" onClick={onClose}>닫기</button>
-          <button className="btn-primary px-5">수정</button>
+          <button className="rounded-md px-5 py-2 text-sm font-semibold text-white hover:opacity-90" style={{ backgroundColor: "#651FFF" }}>저장</button>
         </div>
       </form>
     </div>
