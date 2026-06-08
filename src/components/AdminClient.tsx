@@ -5,6 +5,7 @@ import { GripVertical } from "lucide-react";
 import { useEffect, useState } from "react";
 import { CountryCombobox } from "@/components/CountryCombobox";
 import { SalesRecipientsPicker } from "@/components/SalesRecipientsPicker";
+import { SearchableCombobox } from "@/components/SearchableCombobox";
 import { changePasswordAction, deleteAccountAction, deleteGenericAction, reorderDropdownAction, upsertBuyerMasterAction, upsertDropdownAction, upsertExportProductNameAction, upsertProductMasterAction } from "@/server/actions";
 
 type UserRow = { id: string; name: string; email: string; team: Team; createdAt: string };
@@ -233,7 +234,7 @@ export function AdminClient({
           {category === "PRODUCT_NAME" ? (
             <form action={upsertExportProductNameAction} className="grid flex-1 grid-cols-[160px_1fr_1fr_150px_auto] items-end gap-2">
               <div className="field"><label>국가</label><CountryCombobox name="exportCountry" countries={countries} /></div>
-              <div className="field"><label>제품명</label><input name="productName" required /></div>
+              <div className="field"><label>제품명</label><ProductMasterNameCombobox products={products} /></div>
               <div className="field"><label>영문제품명</label><input name="englishName" required /></div>
               <div className="field"><label>제품코드</label><input name="productCode" required /></div>
               <button className="btn-primary h-11">추가</button>
@@ -254,7 +255,7 @@ export function AdminClient({
         <SearchBox value={dropdownSearch} onChange={setDropdownSearch} placeholder={`${dropdownSectionLabel(category)} 검색`} />
         <div className="mt-4 divide-y divide-slate-100">
           {category === "PRODUCT_NAME"
-            ? displayedProductNames.map((item) => <EditableExportProductName key={item.id} item={item} countries={countries} />)
+            ? displayedProductNames.map((item) => <EditableExportProductName key={item.id} item={item} countries={countries} products={products} />)
             : displayedDropdowns.map((item) => (
                 <EditableDropdown key={item.id} item={item} onMove={moveDropdown} onDragStart={setDraggingId} onDrop={dropDropdown} />
               ))}
@@ -478,7 +479,7 @@ function EditableDropdown({
   );
 }
 
-function EditableExportProductName({ item, countries }: { item: ExportProductNameRow; countries: string[] }) {
+function EditableExportProductName({ item, countries, products }: { item: ExportProductNameRow; countries: string[]; products: ProductRow[] }) {
   const [editing, setEditing] = useState(false);
   if (editing) {
     async function save(formData: FormData) {
@@ -489,7 +490,7 @@ function EditableExportProductName({ item, countries }: { item: ExportProductNam
       <form action={save} className="grid grid-cols-[160px_1fr_1fr_150px_auto] items-center gap-2 py-2 text-sm">
         <input type="hidden" name="id" value={item.id} />
         <CountryCombobox name="exportCountry" countries={countries} defaultValue={item.exportCountry} />
-        <input name="productName" defaultValue={item.productName} required />
+        <ProductMasterNameCombobox products={products} defaultValue={item.productName} />
         <input name="englishName" defaultValue={item.englishName} required />
         <input name="productCode" defaultValue={item.productCode} required />
         <button className="btn-primary">저장</button>
@@ -502,6 +503,22 @@ function EditableExportProductName({ item, countries }: { item: ExportProductNam
       model="exportProductName"
       id={item.id}
       onEdit={() => setEditing(true)}
+    />
+  );
+}
+
+function ProductMasterNameCombobox({ products, defaultValue = "" }: { products: ProductRow[]; defaultValue?: string }) {
+  return (
+    <SearchableCombobox
+      name="productName"
+      defaultValue={defaultValue}
+      placeholder="제품명 검색/선택"
+      required
+      options={products.map((product) => ({
+        id: product.id,
+        value: product.name,
+        label: product.name
+      }))}
     />
   );
 }
