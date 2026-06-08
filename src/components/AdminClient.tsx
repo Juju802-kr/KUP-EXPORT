@@ -5,12 +5,14 @@ import { GripVertical } from "lucide-react";
 import { useEffect, useState } from "react";
 import { CountryCombobox } from "@/components/CountryCombobox";
 import { SalesRecipientsPicker } from "@/components/SalesRecipientsPicker";
-import { changePasswordAction, deleteAccountAction, deleteGenericAction, reorderDropdownAction, upsertBuyerMasterAction, upsertDropdownAction, upsertProductMasterAction } from "@/server/actions";
+import { changePasswordAction, deleteAccountAction, deleteGenericAction, reorderDropdownAction, upsertBuyerMasterAction, upsertDropdownAction, upsertExportProductNameAction, upsertProductMasterAction } from "@/server/actions";
 
 type UserRow = { id: string; name: string; email: string; team: Team; createdAt: string };
 type ProductRow = { id: string; name: string; factory: Factory };
 type BuyerRow = { id: string; exportCountry: string; buyerName: string; defaultCurrency: string | null; salesOwner: string | null; exportOwner: string | null; salesEmailRecipients: string | null };
 type DropdownRow = { id: string; category: DropdownCategory; label: string; value: string; sortOrder: number };
+type ExportProductNameRow = { id: string; exportCountry: string; productName: string; englishName: string; productCode: string };
+type DropdownSection = DropdownCategory | "PRODUCT_NAME";
 
 const INITIAL_VISIBLE_COUNT = 5;
 const LOAD_MORE_COUNT = 10;
@@ -28,6 +30,7 @@ const dropdownLabels: Record<DropdownCategory, string> = {
   FORWARDER: "포워딩",
   DEPARTURE_PORT: "출발항"
 };
+const dropdownSectionLabel = (category: DropdownSection) => category === "PRODUCT_NAME" ? "제품명" : dropdownLabels[category];
 
 const localTeamLabels: Record<Team, string> = {
   OVERSEAS_MARKETING: "해외마케팅팀",
@@ -42,6 +45,7 @@ export function AdminClient({
   products,
   buyers,
   dropdowns,
+  productNames,
   users,
   error,
   success
@@ -49,6 +53,7 @@ export function AdminClient({
   products: ProductRow[];
   buyers: BuyerRow[];
   dropdowns: DropdownRow[];
+  productNames: ExportProductNameRow[];
   users: UserRow[];
   error?: string;
   success?: string;
@@ -57,7 +62,7 @@ export function AdminClient({
   const salesOwners = users.filter((user) => user.team === Team.OVERSEAS_MARKETING || user.team === Team.OVERSEAS_SALES);
   const salesMailTeams: Team[] = [Team.OVERSEAS_MARKETING, Team.OVERSEAS_SALES, Team.OVERSEAS_BRANCH];
   const salesMailUsers = users.filter((user) => salesMailTeams.includes(user.team));
-  const [category, setCategory] = useState<DropdownCategory>(DropdownCategory.EXPORT_COUNTRY);
+  const [category, setCategory] = useState<DropdownSection>(DropdownCategory.EXPORT_COUNTRY);
   const [orderedDropdowns, setOrderedDropdowns] = useState(dropdowns);
   const [team, setTeam] = useState<Team>(Team.OVERSEAS_MARKETING);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -69,7 +74,7 @@ export function AdminClient({
   const [visibleBuyerCount, setVisibleBuyerCount] = useState(INITIAL_VISIBLE_COUNT);
   const [visibleDropdownCount, setVisibleDropdownCount] = useState(INITIAL_VISIBLE_COUNT);
 
-  const visibleDropdowns = orderedDropdowns.filter((item) => item.category === category).sort((a, b) => a.sortOrder - b.sortOrder);
+  const visibleDropdowns = category === "PRODUCT_NAME" ? [] : orderedDropdowns.filter((item) => item.category === category).sort((a, b) => a.sortOrder - b.sortOrder);
   const teamUsers = users.filter((user) => user.team === team);
   const countries = orderedDropdowns.filter((item) => item.category === DropdownCategory.EXPORT_COUNTRY).sort((a, b) => a.sortOrder - b.sortOrder).map((item) => item.label);
   const filteredProducts = products.filter((product) => {
@@ -91,9 +96,13 @@ export function AdminClient({
     ].join(" ").toLowerCase().includes(keyword);
   });
   const filteredDropdowns = visibleDropdowns.filter((item) => `${item.label} ${item.value}`.toLowerCase().includes(dropdownSearch.trim().toLowerCase()));
+  const filteredProductNames = productNames.filter((item) =>
+    `${item.exportCountry} ${item.productName} ${item.englishName} ${item.productCode}`.toLowerCase().includes(dropdownSearch.trim().toLowerCase())
+  );
   const displayedProducts = filteredProducts.slice(0, visibleProductCount);
   const displayedBuyers = filteredBuyers.slice(0, visibleBuyerCount);
   const displayedDropdowns = filteredDropdowns.slice(0, visibleDropdownCount);
+  const displayedProductNames = filteredProductNames.slice(0, visibleDropdownCount);
 
   useEffect(() => setOrderedDropdowns(dropdowns), [dropdowns]);
   useEffect(() => {
@@ -214,31 +223,48 @@ export function AdminClient({
         <div className="mt-4 flex items-end gap-3">
           <div className="field">
             <label>목차</label>
-            <select value={category} onChange={(event) => setCategory(event.target.value as DropdownCategory)}>
+            <select value={category} onChange={(event) => setCategory(event.target.value as DropdownSection)}>
               {Object.entries(dropdownLabels).map(([value, label]) => (
                 <option key={value} value={value}>{label}</option>
               ))}
+              <option value="PRODUCT_NAME">제품명</option>
             </select>
           </div>
-          <form action={upsertDropdownAction} className="flex items-end gap-3">
-            <input type="hidden" name="category" value={category} />
-            <input type="hidden" name="sortOrder" value={visibleDropdowns.length} />
-            <div className="field">
-              <label>추가</label>
-              <input name="label" placeholder={category === DropdownCategory.FORWARDER ? "포워딩사" : `${dropdownLabels[category]} 추가`} required />
-            </div>
-            {category === DropdownCategory.FORWARDER ? <ForwarderValueFields /> : null}
-            <button className="btn-primary">추가</button>
-          </form>
+          {category === "PRODUCT_NAME" ? (
+            <form action={upsertExportProductNameAction} className="grid flex-1 grid-cols-[160px_1fr_1fr_150px_auto] items-end gap-2">
+              <div className="field"><label>국가</label><CountryCombobox name="exportCountry" countries={countries} /></div>
+              <div className="field"><label>제품명</label><input name="productName" required /></div>
+              <div className="field"><label>영문제품명</label><input name="englishName" required /></div>
+              <div className="field"><label>제품코드</label><input name="productCode" required /></div>
+              <button className="btn-primary h-11">추가</button>
+            </form>
+          ) : (
+            <form action={upsertDropdownAction} className="flex items-end gap-3">
+              <input type="hidden" name="category" value={category} />
+              <input type="hidden" name="sortOrder" value={visibleDropdowns.length} />
+              <div className="field">
+                <label>추가</label>
+                <input name="label" placeholder={category === DropdownCategory.FORWARDER ? "포워딩사" : `${dropdownSectionLabel(category)} 추가`} required />
+              </div>
+              {category === DropdownCategory.FORWARDER ? <ForwarderValueFields /> : null}
+              <button className="btn-primary">추가</button>
+            </form>
+          )}
         </div>
-        <SearchBox value={dropdownSearch} onChange={setDropdownSearch} placeholder={`${dropdownLabels[category]} 검색`} />
+        <SearchBox value={dropdownSearch} onChange={setDropdownSearch} placeholder={`${dropdownSectionLabel(category)} 검색`} />
         <div className="mt-4 divide-y divide-slate-100">
-          {displayedDropdowns.map((item) => (
-            <EditableDropdown key={item.id} item={item} onMove={moveDropdown} onDragStart={setDraggingId} onDrop={dropDropdown} />
-          ))}
-          {filteredDropdowns.length === 0 ? <p className="py-3 text-sm text-slate-500">검색 결과가 없습니다.</p> : null}
+          {category === "PRODUCT_NAME"
+            ? displayedProductNames.map((item) => <EditableExportProductName key={item.id} item={item} countries={countries} />)
+            : displayedDropdowns.map((item) => (
+                <EditableDropdown key={item.id} item={item} onMove={moveDropdown} onDragStart={setDraggingId} onDrop={dropDropdown} />
+              ))}
+          {(category === "PRODUCT_NAME" ? filteredProductNames.length : filteredDropdowns.length) === 0 ? <p className="py-3 text-sm text-slate-500">검색 결과가 없습니다.</p> : null}
         </div>
-        <LoadMoreButton shown={displayedDropdowns.length} total={filteredDropdowns.length} onClick={() => setVisibleDropdownCount((current) => current + LOAD_MORE_COUNT)} />
+        <LoadMoreButton
+          shown={category === "PRODUCT_NAME" ? displayedProductNames.length : displayedDropdowns.length}
+          total={category === "PRODUCT_NAME" ? filteredProductNames.length : filteredDropdowns.length}
+          onClick={() => setVisibleDropdownCount((current) => current + LOAD_MORE_COUNT)}
+        />
       </section>
 
       <section className="panel p-5">
@@ -449,6 +475,34 @@ function EditableDropdown({
       </div>
       <RowActions id={item.id} model="dropdown" onEdit={() => setEditing(true)} />
     </div>
+  );
+}
+
+function EditableExportProductName({ item, countries }: { item: ExportProductNameRow; countries: string[] }) {
+  const [editing, setEditing] = useState(false);
+  if (editing) {
+    async function save(formData: FormData) {
+      await upsertExportProductNameAction(formData);
+      setEditing(false);
+    }
+    return (
+      <form action={save} className="grid grid-cols-[160px_1fr_1fr_150px_auto] items-center gap-2 py-2 text-sm">
+        <input type="hidden" name="id" value={item.id} />
+        <CountryCombobox name="exportCountry" countries={countries} defaultValue={item.exportCountry} />
+        <input name="productName" defaultValue={item.productName} required />
+        <input name="englishName" defaultValue={item.englishName} required />
+        <input name="productCode" defaultValue={item.productCode} required />
+        <button className="btn-primary">저장</button>
+      </form>
+    );
+  }
+  return (
+    <ReadRow
+      cols={[item.exportCountry, item.productName, item.englishName, item.productCode]}
+      model="exportProductName"
+      id={item.id}
+      onEdit={() => setEditing(true)}
+    />
   );
 }
 

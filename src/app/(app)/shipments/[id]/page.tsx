@@ -15,7 +15,7 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
   if (!shipment) return <div>선적의뢰를 찾을 수 없습니다.</div>;
 
   const productionNos = shipment.products.map((product) => product.productionRequestNo).filter(Boolean) as string[];
-  const [lcs, productAttachments, buyerMaster] = await Promise.all([
+  const [lcs, productAttachments, buyerMaster, exportProductNames] = await Promise.all([
     productionNos.length || shipment.linkedLcId
       ? prisma.paymentLC.findMany({
           where: {
@@ -38,7 +38,13 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
           where: { buyerName: shipment.buyer },
           orderBy: { updatedAt: "desc" }
         })
-      : null
+      : null,
+    shipment.exportCountry
+      ? prisma.exportProductName.findMany({
+          where: { exportCountry: shipment.exportCountry },
+          orderBy: { productName: "asc" }
+        })
+      : []
   ]);
   const buyerAttachments = buyerMaster
     ? await prisma.attachment.findMany({
@@ -135,6 +141,12 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
         name: product.name,
         costGroupCode: product.costGroupCode,
         factory: product.factory
+      }))}
+      exportProductNames={exportProductNames.map((product) => ({
+        id: product.id,
+        productName: product.productName,
+        englishName: product.englishName,
+        productCode: product.productCode
       }))}
       shipmentAttachments={attachments.map((file) => ({
         id: file.id,

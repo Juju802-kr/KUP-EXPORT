@@ -107,6 +107,22 @@ model ProductMaster {
   updatedById   String?
 }
 
+model ExportProductName {
+  id            String   @id @default(cuid())
+  exportCountry String
+  productName   String
+  englishName   String
+  productCode   String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  createdById   String?
+  updatedById   String?
+
+  @@unique([exportCountry, productName, productCode])
+  @@index([exportCountry, productName])
+  @@index([productCode])
+}
+
 model BuyerMaster {
   id                    String   @id @default(cuid())
   exportCountry         String

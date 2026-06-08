@@ -1300,6 +1300,24 @@ export async function upsertProductMasterAction(formData: FormData) {
   revalidatePath("/admin");
 }
 
+export async function upsertExportProductNameAction(formData: FormData) {
+  const user = await requireUser();
+  const id = formString(formData, "id");
+  const data = {
+    exportCountry: formString(formData, "exportCountry"),
+    productName: formString(formData, "productName"),
+    englishName: formString(formData, "englishName"),
+    productCode: formString(formData, "productCode"),
+    updatedById: user.id
+  };
+  if (!data.exportCountry || !data.productName || !data.englishName || !data.productCode) {
+    fail("/admin", "국가, 제품명, 영문제품명, 제품코드를 모두 입력해주세요.");
+  }
+  if (id) await prisma.exportProductName.update({ where: { id }, data });
+  else await prisma.exportProductName.create({ data: { ...data, createdById: user.id } });
+  revalidatePath("/admin");
+}
+
 export async function upsertBuyerMasterAction(formData: FormData) {
   const user = await requireUser();
   const id = formString(formData, "id");
@@ -1388,6 +1406,8 @@ export async function deleteGenericAction(formData: FormData) {
       const rows = await prisma.dropdownOption.findMany({ where: { category: target.category }, orderBy: [{ sortOrder: "asc" }, { label: "asc" }] });
       await Promise.all(rows.map((row, index) => prisma.dropdownOption.update({ where: { id: row.id }, data: { sortOrder: index } })));
     }
+  } else if (model === "exportProductName") {
+    await prisma.exportProductName.delete({ where: { id } });
   }
   if (model === "teamEmail") await prisma.teamEmail.delete({ where: { id } });
   revalidatePath("/admin");

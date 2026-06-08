@@ -20,6 +20,7 @@ type Options = {
   departurePort: Option[];
 };
 type ProductMaster = { id: string; name: string; costGroupCode: string | null; factory: Factory | null };
+type ExportProductName = { id: string; productName: string; englishName: string; productCode: string };
 type Attachment = { id: string; ownerId: string; originalName: string; path: string; mimeType: string | null };
 type LcRow = { id: string; lcNo: string | null; productionRequestNo: string | null; lcSd: string | null; buyer: string | null };
 type BuyerNote = { id: string; buyerName: string; specialNote: string | null; specialNoteUpdatedAt: string | null };
@@ -110,6 +111,7 @@ export function ShipmentDetailEditor({
   shipment,
   options,
   productMasters,
+  exportProductNames,
   shipmentAttachments,
   productAttachments,
   buyerNote,
@@ -119,6 +121,7 @@ export function ShipmentDetailEditor({
   shipment: ShipmentValue;
   options: Options;
   productMasters: ProductMaster[];
+  exportProductNames: ExportProductName[];
   shipmentAttachments: Attachment[];
   productAttachments: Attachment[];
   buyerNote: BuyerNote | null;
@@ -126,6 +129,7 @@ export function ShipmentDetailEditor({
   lcs: LcRow[];
 }) {
   const [editingProduct, setEditingProduct] = useState<ProductRow | null>(null);
+  const [autoEnglishName, setAutoEnglishName] = useState<string | null>(null);
   const [productKey, setProductKey] = useState(0);
   const productFormValue = editingProduct ?? emptyProduct;
   const productAction = editingProduct ? updateProductAction : createProductAction;
@@ -137,11 +141,13 @@ export function ShipmentDetailEditor({
 
   function editProduct(product: ProductRow) {
     setEditingProduct(product);
+    setAutoEnglishName(null);
     setProductKey((key) => key + 1);
   }
 
   function resetProduct() {
     setEditingProduct(null);
+    setAutoEnglishName(null);
     setProductKey((key) => key + 1);
   }
 
@@ -343,9 +349,9 @@ export function ShipmentDetailEditor({
         {editingProduct ? <input type="hidden" name="id" value={editingProduct.id} /> : null}
         <input type="hidden" name="exportEmailRecipients" value="" />
         <Box title={editingProduct ? "제품 수정" : "제품 추가"} columns={3}>
-          <ProductMasterSelect products={productMasters} current={productFormValue} />
+          <ProductMasterSelect products={productMasters} aliases={exportProductNames} current={productFormValue} onEnglishName={setAutoEnglishName} />
           <ProductInput label="일반박스 (58*44*47)" name="normalBoxQty" type="number" value={productFormValue.normalBoxQty} />
-          <ProductInput label="영문제품명" name="englishName" value={productFormValue.englishName} />
+          <ProductInput label="영문제품명" name="englishName" value={autoEnglishName ?? productFormValue.englishName} />
           <ProductInput label="수출단가" name="exportUnitPrice" type="number" step="0.01" value={productFormValue.exportUnitPrice} />
           <ProductInput label="아이스박스 (57*51*49)" name="iceBoxQty" type="number" value={productFormValue.iceBoxQty} />
           <ProductInput label="PI No." name="piNo" value={productFormValue.piNo} />
@@ -553,17 +559,41 @@ function ComboBox({ label, name, value, options }: { label: string; name: string
   );
 }
 
-function ProductMasterSelect({ products, current }: { products: ProductMaster[]; current: ProductRow }) {
+function ProductMasterSelect({
+  products,
+  aliases,
+  current,
+  onEnglishName
+}: {
+  products: ProductMaster[];
+  aliases: ExportProductName[];
+  current: ProductRow;
+  onEnglishName: (value: string) => void;
+}) {
   const [selected, setSelected] = useState(current.productMasterId ?? "");
   const [name, setName] = useState(current.productName ?? "");
   const [costGroupCode, setCostGroupCode] = useState(current.costGroupCode ?? "");
   const [factory, setFactory] = useState(current.factory ?? "");
-  const productMap = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
+  const selectableProducts = useMemo(() => {
+    const productNames = new Set(products.map((product) => product.name.trim()));
+    return [
+      ...products,
+      ...aliases
+        .filter((alias) => !productNames.has(alias.productName.trim()))
+        .map((alias) => ({
+          id: `alias:${alias.id}`,
+          name: alias.productName,
+          costGroupCode: null,
+          factory: null
+        }))
+    ];
+  }, [aliases, products]);
+  const productMap = useMemo(() => new Map(selectableProducts.map((product) => [product.id, product])), [selectableProducts]);
   const filteredProducts = useMemo(() => {
     const query = name.trim().toLowerCase();
-    if (!query) return products.slice(0, 30);
-    return products.filter((product) => product.name.toLowerCase().includes(query)).slice(0, 30);
-  }, [name, products]);
+    if (!query) return selectableProducts.slice(0, 30);
+    return selectableProducts.filter((product) => product.name.toLowerCase().includes(query)).slice(0, 30);
+  }, [name, selectableProducts]);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -572,12 +602,14 @@ function ProductMasterSelect({ products, current }: { products: ProductMaster[];
   }, [name, filteredProducts.length]);
 
   function onSelect(value: string) {
-    setSelected(value);
     const product = productMap.get(value);
     if (!product) return;
+    setSelected(value.startsWith("alias:") ? "" : value);
     setName(product.name);
     setCostGroupCode(product.costGroupCode ?? "");
     setFactory(product.factory ?? "");
+    const alias = aliases.find((item) => item.productName.trim() === product.name.trim());
+    if (alias) onEnglishName(alias.englishName);
     setOpen(false);
   }
 
@@ -586,6 +618,8 @@ function ProductMasterSelect({ products, current }: { products: ProductMaster[];
     setSelected("");
     setCostGroupCode("");
     setFactory("");
+    const alias = aliases.find((item) => item.productName.trim() === value.trim());
+    onEnglishName(alias?.englishName ?? "");
     setOpen(true);
   }
 
@@ -666,6 +700,10 @@ function ProductMasterSelect({ products, current }: { products: ProductMaster[];
 function ProductInput({ label, name, value, type = "text", step, className = "" }: { label: ReactNode; name: string; value?: unknown; type?: string; step?: string; className?: string }) {
   const isNumeric = type === "number";
   const [displayValue, setDisplayValue] = useState(() => (isNumeric ? formatNumberInput(value) : String(value ?? "")));
+
+  useEffect(() => {
+    setDisplayValue(isNumeric ? formatNumberInput(value) : String(value ?? ""));
+  }, [isNumeric, value]);
 
   return (
     <Field label={label}>
