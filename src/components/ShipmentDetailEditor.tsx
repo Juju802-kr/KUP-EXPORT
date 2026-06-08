@@ -575,16 +575,32 @@ function ProductMasterSelect({
   const [costGroupCode, setCostGroupCode] = useState(current.costGroupCode ?? "");
   const [factory, setFactory] = useState(current.factory ?? "");
   const selectableProducts = useMemo(() => {
-    const productNames = new Set(products.map((product) => product.name.trim()));
+    const aliasesByName = new Map<string, ExportProductName[]>();
+    for (const alias of aliases) {
+      const key = alias.productName.trim();
+      aliasesByName.set(key, [...(aliasesByName.get(key) ?? []), alias]);
+    }
+    const mastersByName = new Map(products.map((product) => [product.name.trim(), product]));
     return [
-      ...products,
-      ...aliases
-        .filter((alias) => !productNames.has(alias.productName.trim()))
-        .map((alias) => ({
+      ...aliases.map((alias) => {
+        const master = mastersByName.get(alias.productName.trim());
+        return {
           id: `alias:${alias.id}`,
           name: alias.productName,
-          costGroupCode: null,
-          factory: null
+          optionLabel: `${alias.productName} · ${alias.productCode}`,
+          productMasterId: master?.id ?? "",
+          costGroupCode: master?.costGroupCode ?? null,
+          factory: master?.factory ?? null,
+          englishName: alias.englishName
+        };
+      }),
+      ...products
+        .filter((product) => !aliasesByName.has(product.name.trim()))
+        .map((product) => ({
+          ...product,
+          optionLabel: product.name,
+          productMasterId: product.id,
+          englishName: ""
         }))
     ];
   }, [aliases, products]);
@@ -604,12 +620,11 @@ function ProductMasterSelect({
   function onSelect(value: string) {
     const product = productMap.get(value);
     if (!product) return;
-    setSelected(value.startsWith("alias:") ? "" : value);
+    setSelected(product.productMasterId);
     setName(product.name);
     setCostGroupCode(product.costGroupCode ?? "");
     setFactory(product.factory ?? "");
-    const alias = aliases.find((item) => item.productName.trim() === product.name.trim());
-    if (alias) onEnglishName(alias.englishName);
+    if (product.englishName) onEnglishName(product.englishName);
     setOpen(false);
   }
 
@@ -680,7 +695,7 @@ function ProductMasterSelect({
                   onMouseEnter={() => setActiveIndex(index)}
                   onClick={() => onSelect(product.id)}
                 >
-                  {product.name}
+                  {product.optionLabel}
                 </button>
               ))}
               {filteredProducts.length === 0 ? <div className="px-3 py-2 text-sm text-slate-500">검색 결과 없음</div> : null}
