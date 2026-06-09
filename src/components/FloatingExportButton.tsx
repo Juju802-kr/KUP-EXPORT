@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Download, X } from "lucide-react";
+import { AppSelect } from "@/components/AppSelect";
 
 type ExportKind = "shipments" | "tt" | "lc";
 type FilterKey = "salesOwner" | "exportOwner" | "country" | "buyer" | "product";
@@ -153,10 +154,7 @@ export function FloatingExportButton({
 
               <div className="field">
                 <label>파일 형식</label>
-                <select value={format} onChange={(event) => setFormat(event.target.value as "excel" | "pdf")}>
-                  <option value="excel">Excel</option>
-                  <option value="pdf">PDF</option>
-                </select>
+                <AppSelect value={format} onChange={(value) => setFormat(value as "excel" | "pdf")} options={[{ value: "excel", label: "Excel" }, { value: "pdf", label: "PDF" }]} />
               </div>
             </div>
 

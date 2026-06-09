@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { DeleteButton } from "@/components/DeleteButton";
+import { AppSelect } from "@/components/AppSelect";
 import { SearchableCombobox } from "@/components/SearchableCombobox";
 import { createProductAction, deleteProductAction, deleteShipmentAction, sendProductCoaMailAction, sendShipmentQuoteMailAction, sendShipmentRequestMailAction, sendShipmentScheduleMailAction, updateProductAction, updateShipmentAction } from "@/server/actions";
 
@@ -194,10 +195,7 @@ export function ShipmentDetailEditor({
             <div className="flex items-end justify-between gap-3">
               <div className="flex items-end gap-2">
                 <Field label="선적 요청" compact>
-                  <select name="shipmentRequestType" defaultValue={shipmentRequestDefault} className="h-10 w-44">
-                    <option value="new">신규 요청</option>
-                    <option value="update">수정 요청</option>
-                  </select>
+                  <AppSelect name="shipmentRequestType" defaultValue={shipmentRequestDefault} className="w-44" options={[{ value: "new", label: "신규 요청" }, { value: "update", label: "수정 요청" }]} />
                 </Field>
                 <button formAction={sendShipmentRequestMailAction} className="btn-primary h-10 px-5">메일 전송</button>
               </div>
@@ -234,21 +232,14 @@ export function ShipmentDetailEditor({
             <div className="flex items-end justify-between gap-3">
               <div className="flex items-end gap-2">
                 <Field label="상태" compact>
-                  <select
-                    name="status"
-                    value={statusValue}
-                    onChange={(event) => {
-                      setStatusValue(event.target.value as ShipmentStatus);
-                    }}
-                    className="h-10 w-44"
-                  >
-                    <option value="REQUEST_WAITING">의뢰대기</option>
-                    <option value="SCHEDULE">1. 스케줄</option>
-                    <option value="QUOTE">★견적</option>
-                    <option value="SHIPPING_DOCS">2. 출고 및 선적/서류</option>
-                    <option value="NEGO_COLLECTION">3. 네고 및 수금처리</option>
-                    <option value="AFTERCARE">4. 사후관리</option>
-                  </select>
+                  <AppSelect name="status" value={statusValue} onChange={(value) => setStatusValue(value as ShipmentStatus)} className="w-44" options={[
+                    { value: "REQUEST_WAITING", label: "의뢰대기" },
+                    { value: "SCHEDULE", label: "1. 스케줄" },
+                    { value: "QUOTE", label: "★견적" },
+                    { value: "SHIPPING_DOCS", label: "2. 출고 및 선적/서류" },
+                    { value: "NEGO_COLLECTION", label: "3. 네고 및 수금처리" },
+                    { value: "AFTERCARE", label: "4. 사후관리" }
+                  ]} />
                 </Field>
                 {statusValue === "QUOTE" ? (
                   <button formAction={sendShipmentQuoteMailAction} className="btn-primary h-10 px-5">
@@ -258,10 +249,7 @@ export function ShipmentDetailEditor({
                 {statusValue === "SHIPPING_DOCS" ? (
                   <>
                     <Field label="스케줄 안내" compact>
-                      <select name="scheduleMailType" defaultValue={scheduleMailDefault} className="h-10 w-24">
-                        <option value="new">신규</option>
-                        <option value="change">변경</option>
-                      </select>
+                      <AppSelect name="scheduleMailType" defaultValue={scheduleMailDefault} className="w-28" options={[{ value: "new", label: "신규" }, { value: "change", label: "변경" }]} />
                     </Field>
                     <button formAction={sendShipmentScheduleMailAction} className="btn-primary h-10 px-5">메일 전송</button>
                   </>

@@ -1,5 +1,6 @@
 import { Team } from "@prisma/client";
 import { KupEmailField, PasswordField } from "@/components/AuthFields";
+import { AppSelect } from "@/components/AppSelect";
 import { teamLabels } from "@/lib/constants";
 import { registerAction } from "@/server/actions";
 
@@ -13,13 +14,7 @@ export default async function RegisterPage({ searchParams }: { searchParams: Pro
           <div className="mt-8 grid grid-cols-2 gap-4">
             <div className="field">
               <label>팀명</label>
-              <select name="team" required>
-                {Object.values(Team).map((team) => (
-                  <option key={team} value={team}>
-                    {teamLabels[team]}
-                  </option>
-                ))}
-              </select>
+              <AppSelect name="team" required defaultValue={Object.values(Team)[0]} options={Object.values(Team).map((team) => ({ value: team, label: teamLabels[team] }))} />
             </div>
             <div className="field">
               <label>이름</label>

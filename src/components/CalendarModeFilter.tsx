@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from "react";
+import { AppSelect } from "@/components/AppSelect";
 
 export function CalendarModeFilter({ mode, month, name }: { mode: string; month: string; name?: string }) {
   const formRef = useRef<HTMLFormElement>(null);
@@ -9,12 +10,7 @@ export function CalendarModeFilter({ mode, month, name }: { mode: string; month:
     <form ref={formRef} className="panel flex flex-wrap items-end gap-3 p-4">
       <div className="field">
         <label>기준</label>
-        <select name="mode" defaultValue={mode} onChange={() => formRef.current?.requestSubmit()}>
-          <option value="release">출고</option>
-          <option value="shipping">선적</option>
-          <option value="owner">담당자</option>
-          <option value="notice">공지</option>
-        </select>
+        <AppSelect name="mode" defaultValue={mode} onChange={() => setTimeout(() => formRef.current?.requestSubmit(), 0)} options={[{ value: "release", label: "출고" }, { value: "shipping", label: "선적" }, { value: "owner", label: "담당자" }, { value: "notice", label: "공지" }]} />
       </div>
       <input type="hidden" name="month" value={month} />
       {mode === "owner" ? (

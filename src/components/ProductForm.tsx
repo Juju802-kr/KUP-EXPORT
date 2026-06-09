@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { createProductAction } from "@/server/actions";
+import { AppSelect } from "@/components/AppSelect";
 
 type FactoryValue = "JEONDONG" | "SEOMYEON";
 
@@ -35,24 +36,13 @@ export function ProductForm({ shipmentId, products }: { shipmentId: string; prod
       <div className="mt-4 grid grid-cols-5 gap-4">
         <div className="field">
           <label>제품 마스터</label>
-          <select name="productMasterId" value={selectedId} onChange={(event) => onSelect(event.target.value)}>
-            <option value="">직접 입력</option>
-            {products.map((product) => (
-              <option key={product.id} value={product.id}>
-                {product.name} / {product.costGroupCode}
-              </option>
-            ))}
-          </select>
+          <AppSelect name="productMasterId" value={selectedId} onChange={onSelect} placeholder="직접 입력" options={products.map((product) => ({ value: product.id, label: `${product.name} / ${product.costGroupCode}` }))} />
         </div>
         <Input label="제품명" name="productName" required value={name} onChange={setName} />
         <Input label="원가군코드" name="costGroupCode" value={costGroupCode} onChange={setCostGroupCode} />
         <div className="field">
           <label>공장</label>
-          <select name="factory" value={factory} onChange={(event) => setFactory(event.target.value)}>
-            <option value="">선택</option>
-            <option value="JEONDONG">전동</option>
-            <option value="SEOMYEON">서면</option>
-          </select>
+          <AppSelect name="factory" value={factory} onChange={setFactory} options={[{ value: "JEONDONG", label: "전동" }, { value: "SEOMYEON", label: "서면" }]} />
         </div>
         <Input label="영문제품명" name="englishName" />
         <Input label="생산의뢰번호" name="productionRequestNo" />

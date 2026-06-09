@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { CountryCombobox } from "@/components/CountryCombobox";
+import { AppSelect } from "@/components/AppSelect";
 import { DeleteButton } from "@/components/DeleteButton";
 import { SearchableCombobox } from "@/components/SearchableCombobox";
 import { confirmPaymentLCAction, confirmPaymentTTAction, createPaymentLCAction, createPaymentTTAction, deletePaymentAction, notifyPaymentLCAction, notifyPaymentTTAction } from "@/server/actions";
@@ -355,14 +356,14 @@ function LCSection({
           <div className="mt-4 space-y-4">
             <div className="grid grid-cols-4 gap-4">
               <Field label="OPEN / AMEND">
-                <select name="kind" defaultValue={current.kind === PaymentLcKind.AMEND ? PaymentLcKind.AMEND_1ST : current.kind}>
-                  <option value={PaymentLcKind.OPEN}>OPEN</option>
-                  <option value={PaymentLcKind.AMEND_1ST}>1st AMEND</option>
-                  <option value={PaymentLcKind.AMEND_2ND}>2nd AMEND</option>
-                  <option value={PaymentLcKind.AMEND_3RD}>3rd AMEND</option>
-                  <option value={PaymentLcKind.AMEND_4TH}>4th AMEND</option>
-                  <option value={PaymentLcKind.AMEND_5TH}>5th AMEND</option>
-                </select>
+                <AppSelect name="kind" defaultValue={current.kind === PaymentLcKind.AMEND ? PaymentLcKind.AMEND_1ST : current.kind} options={[
+                  { value: PaymentLcKind.OPEN, label: "OPEN" },
+                  { value: PaymentLcKind.AMEND_1ST, label: "1st AMEND" },
+                  { value: PaymentLcKind.AMEND_2ND, label: "2nd AMEND" },
+                  { value: PaymentLcKind.AMEND_3RD, label: "3rd AMEND" },
+                  { value: PaymentLcKind.AMEND_4TH, label: "4th AMEND" },
+                  { value: PaymentLcKind.AMEND_5TH, label: "5th AMEND" }
+                ]} />
               </Field>
               <Field label="은행">
                 <SearchableCombobox
@@ -611,26 +612,17 @@ function BuyerSelect({ buyers, value, onChange }: { buyers: BuyerOption[]; value
 }
 
 function CurrencySelect({ name, value }: { name: string; value: string }) {
-  return (
-    <select name={name} value={value} onChange={() => undefined} className="w-full">
-      <option value="USD">USD</option>
-      <option value="EUR">EUR</option>
-      <option value="KRW">KRW</option>
-    </select>
-  );
+  return <AppSelect name={name} value={value} options={["USD", "EUR", "KRW"].map((item) => ({ value: item, label: item }))} />;
 }
 
 function OwnerSelect({ label, name, users, value, fallbackOption }: { label: string; name: string; users: UserOption[]; value: string; fallbackOption?: string }) {
   const hasFallbackInUsers = fallbackOption ? users.some((user) => user.name === fallbackOption) : true;
   return (
     <Field label={label}>
-      <select name={name} value={value} onChange={() => undefined} className="w-full">
-        <option value="">{label}</option>
-        {fallbackOption && !hasFallbackInUsers ? <option value={fallbackOption}>{fallbackOption}</option> : null}
-        {users.map((user) => (
-          <option key={user.id} value={user.name}>{user.name}</option>
-        ))}
-      </select>
+      <AppSelect name={name} value={value} placeholder={label} options={[
+        ...(fallbackOption && !hasFallbackInUsers ? [{ value: fallbackOption, label: fallbackOption }] : []),
+        ...users.map((user) => ({ value: user.name, label: user.name }))
+      ]} />
     </Field>
   );
 }

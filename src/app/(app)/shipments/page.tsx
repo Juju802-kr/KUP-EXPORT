@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Factory, ShipmentStatus, Team } from "@prisma/client";
 import { DataLoggerTable } from "@/components/DataLoggerTable";
 import { FloatingExportButton } from "@/components/FloatingExportButton";
+import { AppSelect } from "@/components/AppSelect";
 import { ExportShipmentsKanbanClient, ShipmentsListClient } from "@/components/ShipmentsListClient";
 import { requireUser } from "@/lib/auth";
 import { fmtDate, fmtMoney } from "@/lib/constants";
@@ -192,15 +193,15 @@ export default async function ShipmentsPage({ searchParams }: { searchParams: Pr
           </div>
           <div className="field">
             <label>상태</label>
-            <select name="status" defaultValue={status ?? ""}>
-              <option value="">전체</option>
-              <option value="REQUEST_WAITING">의뢰대기</option>
-              <option value="SCHEDULE">1. 스케줄</option>
-              <option value="QUOTE">★견적</option>
-              <option value="SHIPPING_DOCS">2. 출고 및 선적/서류</option>
-              <option value="NEGO_COLLECTION">3. 네고 및 수금처리</option>
-              <option value="AFTERCARE">4. 사후관리</option>
-            </select>
+            <AppSelect name="status" defaultValue={status ?? ""} placeholder="전체" options={[
+              { value: "", label: "전체" },
+              { value: "REQUEST_WAITING", label: "의뢰대기" },
+              { value: "SCHEDULE", label: "1. 스케줄" },
+              { value: "QUOTE", label: "★견적" },
+              { value: "SHIPPING_DOCS", label: "2. 출고 및 선적/서류" },
+              { value: "NEGO_COLLECTION", label: "3. 네고 및 수금처리" },
+              { value: "AFTERCARE", label: "4. 사후관리" }
+            ]} />
           </div>
           <button className="btn">검색</button>
         </form>

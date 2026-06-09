@@ -4,6 +4,7 @@ import { DropdownCategory, Factory, Team } from "@prisma/client";
 import { GripVertical } from "lucide-react";
 import { useEffect, useState } from "react";
 import { CountryCombobox } from "@/components/CountryCombobox";
+import { AppSelect } from "@/components/AppSelect";
 import { SalesRecipientsPicker } from "@/components/SalesRecipientsPicker";
 import { SearchableCombobox } from "@/components/SearchableCombobox";
 import { bulkUpdateBuyerMastersByCountryAction, changePasswordAction, deleteAccountAction, deleteGenericAction, reorderDropdownAction, upsertBuyerMasterAction, upsertDropdownAction, upsertExportProductNameAction, upsertProductMasterAction } from "@/server/actions";
@@ -164,10 +165,7 @@ export function AdminClient({
           <form action={upsertProductMasterAction} className="mt-4 grid grid-cols-3 gap-3">
             <input name="name" placeholder="제품명" required />
             <input type="hidden" name="costGroupCode" value="" />
-            <select name="factory" defaultValue={Factory.JEONDONG}>
-              <option value={Factory.JEONDONG}>전동</option>
-              <option value={Factory.SEOMYEON}>서면</option>
-            </select>
+            <FactorySelect />
             <button className="btn-primary">추가</button>
           </form>
           <SearchBox value={productSearch} onChange={setProductSearch} placeholder="제품명 또는 공장 검색" />
@@ -180,11 +178,7 @@ export function AdminClient({
 
         <div className="panel p-5">
           <h2 className="text-base font-semibold">팀별 이메일 목록 관리</h2>
-          <select className="mt-4" value={team} onChange={(event) => setTeam(event.target.value as Team)}>
-            {Object.values(Team).map((value) => (
-              <option key={value} value={value}>{localTeamLabels[value]}</option>
-            ))}
-          </select>
+          <AppSelect className="mt-4 max-w-xs" value={team} onChange={(value) => setTeam(value as Team)} options={Object.values(Team).map((value) => ({ value, label: localTeamLabels[value] }))} />
           <div className="mt-4 divide-y divide-slate-100">
             {teamUsers.map((user) => (
               <div key={user.id} className="grid grid-cols-2 gap-3 py-2 text-sm">
@@ -237,12 +231,7 @@ export function AdminClient({
         <div className="mt-4 flex items-end gap-3">
           <div className="field">
             <label>목차</label>
-            <select value={category} onChange={(event) => setCategory(event.target.value as DropdownSection)}>
-              {Object.entries(dropdownLabels).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-              <option value="PRODUCT_NAME">제품명</option>
-            </select>
+            <AppSelect value={category} onChange={(value) => setCategory(value as DropdownSection)} options={[...Object.entries(dropdownLabels).map(([value, label]) => ({ value, label })), { value: "PRODUCT_NAME", label: "제품명" }]} />
           </div>
           {category === "PRODUCT_NAME" ? (
             <form action={upsertExportProductNameAction} className="grid flex-1 grid-cols-[160px_1fr_1fr_150px_auto] items-end gap-2">
@@ -366,31 +355,19 @@ function ForwarderValueFields({ defaultValue = "", compact = false }: { defaultV
 }
 
 function CurrencySelect({ defaultValue = "USD" }: { defaultValue?: string | null }) {
-  return (
-    <select className="h-11" name="defaultCurrency" defaultValue={defaultValue ?? "USD"} aria-label="기본 통화">
-      <option value="USD">USD</option>
-      <option value="EUR">EUR</option>
-      <option value="KRW">KRW</option>
-    </select>
-  );
+  return <AppSelect name="defaultCurrency" defaultValue={defaultValue ?? "USD"} options={["USD", "EUR", "KRW"].map((value) => ({ value, label: value }))} />;
 }
 
 function OwnerSelect({ users, defaultValue = "" }: { users: UserRow[]; defaultValue?: string | null }) {
-  return (
-    <select className="h-11" name="exportOwner" defaultValue={defaultValue ?? ""} required>
-      <option value="">수출 담당자</option>
-      {users.map((user) => <option key={user.id} value={user.name}>{user.name}</option>)}
-    </select>
-  );
+  return <AppSelect name="exportOwner" defaultValue={defaultValue ?? ""} placeholder="수출 담당자" required options={users.map((user) => ({ value: user.name, label: user.name }))} />;
 }
 
 function SalesOwnerSelect({ users, defaultValue = "" }: { users: UserRow[]; defaultValue?: string | null }) {
-  return (
-    <select className="h-11" name="salesOwner" defaultValue={defaultValue ?? ""} required>
-      <option value="">영업 담당자</option>
-      {users.map((user) => <option key={user.id} value={user.name}>{user.name}</option>)}
-    </select>
-  );
+  return <AppSelect name="salesOwner" defaultValue={defaultValue ?? ""} placeholder="영업 담당자" required options={users.map((user) => ({ value: user.name, label: user.name }))} />;
+}
+
+function FactorySelect({ defaultValue = Factory.JEONDONG }: { defaultValue?: Factory }) {
+  return <AppSelect name="factory" defaultValue={defaultValue} options={[{ value: Factory.JEONDONG, label: "전동" }, { value: Factory.SEOMYEON, label: "서면" }]} />;
 }
 
 function EditableProduct({ product }: { product: ProductRow }) {
@@ -401,18 +378,13 @@ function EditableProduct({ product }: { product: ProductRow }) {
       setEditing(false);
     }
     return (
-      <form action={save} className="grid grid-cols-[1fr_140px] gap-3 py-2 text-sm">
+      <form action={save} className="grid grid-cols-[minmax(0,1fr)_180px_auto_auto] items-start gap-3 py-2 text-sm">
         <input type="hidden" name="id" value={product.id} />
         <input type="hidden" name="costGroupCode" value="" />
         <input name="name" defaultValue={product.name} required />
-        <select name="factory" defaultValue={product.factory}>
-          <option value={Factory.JEONDONG}>전동</option>
-          <option value={Factory.SEOMYEON}>서면</option>
-        </select>
-        <div className="col-span-2 flex justify-end gap-2">
-          <button className="btn-primary">저장</button>
-          <button className="btn" type="button" onClick={() => setEditing(false)}>취소</button>
-        </div>
+        <FactorySelect defaultValue={product.factory} />
+        <button className="btn-primary h-11">저장</button>
+        <button className="btn h-11" type="button" onClick={() => setEditing(false)}>취소</button>
       </form>
     );
   }
