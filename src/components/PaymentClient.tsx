@@ -460,8 +460,8 @@ function PaymentTTAllocationRows({ rows }: { rows: PaymentTTAllocationRow[] }) {
 
   function addRow() {
     setItems((current) => [
-      { key: crypto.randomUUID(), row: { id: "", productionRequestNo: "", invNo: "", amount: "", note: "" } },
-      ...current
+      ...current,
+      { key: crypto.randomUUID(), row: { id: "", productionRequestNo: "", invNo: "", amount: "", note: "" } }
     ]);
   }
 
@@ -504,8 +504,8 @@ function PaymentLCAllocationRows({ rows }: { rows: PaymentLCAllocationRow[] }) {
 
   function addRow() {
     setItems((current) => [
-      { key: crypto.randomUUID(), row: { id: "", productionRequestNo: "", amount: "" } },
-      ...current
+      ...current,
+      { key: crypto.randomUUID(), row: { id: "", productionRequestNo: "", amount: "" } }
     ]);
   }
 
