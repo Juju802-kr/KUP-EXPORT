@@ -12,14 +12,29 @@ type ShipmentTitleSource = {
 };
 
 export function shipmentDisplayTitle(shipment: ShipmentTitleSource) {
-  const usedPiNos = new Set<string>();
-  const productParts = shipment.products.flatMap((product) => {
-    const productName = product.englishName || product.productName || "";
-    const piNo = product.piNo?.trim() ?? "";
-    const shouldShowPiNo = piNo && !usedPiNos.has(piNo);
-    if (shouldShowPiNo) usedPiNos.add(piNo);
-    return [productName, shouldShowPiNo ? piNo : ""].filter(Boolean);
-  });
+  const uniqueValues = (values: string[]) => [...new Set(values.filter(Boolean))];
+  const products = shipment.products.map((product) => ({
+    name: product.englishName?.trim() || product.productName?.trim() || "",
+    piNo: product.piNo?.trim() || "",
+  }));
+  const productNames = uniqueValues(products.map((product) => product.name));
+  const piNos = uniqueValues(products.map((product) => product.piNo));
+
+  let productParts: string[];
+  if (piNos.length === 1) {
+    productParts = [...productNames, piNos[0]];
+  } else if (productNames.length === 1) {
+    productParts = [productNames[0], ...piNos];
+  } else {
+    const usedPairs = new Set<string>();
+    productParts = products.flatMap((product) => {
+      const pairKey = `${product.name}\u0000${product.piNo}`;
+      if (usedPairs.has(pairKey)) return [];
+      usedPairs.add(pairKey);
+      return [product.name, product.piNo].filter(Boolean);
+    });
+  }
+
   return [shipment.exportCountry, shipment.buyer, ...productParts, shipment.invNo]
     .map((value) => value?.trim())
     .filter(Boolean)
