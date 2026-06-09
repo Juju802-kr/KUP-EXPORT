@@ -2,6 +2,7 @@ import { AttachmentOwnerType, NoticeType, Team } from "@prisma/client";
 import Link from "next/link";
 import { DeleteButton } from "@/components/DeleteButton";
 import { NoticeEditor } from "@/components/NoticeEditor";
+import { NoticeLatestToggle } from "@/components/NoticeLatestToggle";
 import { fmtDate, fmtDateTimeLocal } from "@/lib/constants";
 import { prisma } from "@/lib/prisma";
 import { deleteNoticeAction } from "@/server/actions";
@@ -18,6 +19,7 @@ function parseNoticeLimit(value?: string) {
 function noticeMoreHref(params: Record<string, string | undefined>, nextLimit: number) {
   const next = new URLSearchParams();
   if (params.q) next.set("q", params.q);
+  if (params.latest === "1") next.set("latest", "1");
   next.set("limit", String(nextLimit));
   return `/notices?${next.toString()}`;
 }
@@ -72,13 +74,14 @@ export default async function NoticesPage({ searchParams }: { searchParams: Prom
   const q = params.q?.trim();
   const editId = params.edit?.trim();
   const cancelId = params.cancel?.trim();
+  const latestOnly = params.latest === "1";
   const listLimit = parseNoticeLimit(params.limit);
   const notices = await prisma.notice.findMany({
     where: q
       ? { OR: [{ title: { contains: q } }, { content: { contains: q } }, { cancelReason: { contains: q } }, { recipientTeams: { some: { team: { contains: q } } } }] }
       : {},
     include: { recipientTeams: true },
-    orderBy: [{ important: "desc" }, { createdAt: "desc" }],
+    orderBy: latestOnly ? [{ createdAt: "desc" }] : [{ important: "desc" }, { createdAt: "desc" }],
     take: listLimit + 1
   });
   const hasMore = notices.length > listLimit;
@@ -130,6 +133,7 @@ export default async function NoticesPage({ searchParams }: { searchParams: Prom
             <input name="q" defaultValue={q ?? ""} placeholder="제목, 내용, 대상 팀" />
           </div>
           <button className="btn">검색</button>
+          <NoticeLatestToggle checked={latestOnly} />
         </form>
         {visibleNotices.map((notice) => (
           <article id={notice.id} key={notice.id} className="panel p-5">
