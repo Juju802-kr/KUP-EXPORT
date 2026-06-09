@@ -104,7 +104,6 @@ export function AdminClient({
   const displayedBuyers = filteredBuyers.slice(0, visibleBuyerCount);
   const displayedDropdowns = filteredDropdowns.slice(0, visibleDropdownCount);
   const displayedProductNames = filteredProductNames.slice(0, visibleDropdownCount);
-  const bulkBuyerCountry = countries.find((country) => country.toLowerCase() === buyerSearch.trim().toLowerCase());
 
   useEffect(() => setOrderedDropdowns(dropdowns), [dropdowns]);
   useEffect(() => {
@@ -211,21 +210,19 @@ export function AdminClient({
           <button className="btn-primary h-11">추가</button>
         </form>
         <SearchBox value={buyerSearch} onChange={setBuyerSearch} placeholder="수출국, 바이어명, 담당자 검색" />
-        {bulkBuyerCountry ? (
-          <form action={bulkUpdateBuyerMastersByCountryAction} className="mt-3 rounded-md border border-blue-200 bg-blue-50 p-3">
-            <input type="hidden" name="exportCountry" value={bulkBuyerCountry} />
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <p className="text-sm font-semibold text-blue-900">{bulkBuyerCountry} 바이어 {filteredBuyers.length}건 담당자 일괄 수정</p>
-              <span className="text-xs text-blue-700">저장 시 해당 수출국의 모든 바이어에 적용됩니다.</span>
-            </div>
-            <div className="grid grid-cols-[160px_160px_minmax(240px,1fr)_auto] items-start gap-2">
-              <SalesOwnerSelect users={salesOwners} />
-              <OwnerSelect users={exportOwners} />
-              <SalesRecipientsPicker users={salesMailUsers.map((user) => ({ id: user.id, name: user.name, teamLabel: localTeamLabels[user.team] }))} />
-              <button className="btn-primary h-11 px-5">일괄 저장</button>
-            </div>
-          </form>
-        ) : null}
+        <form action={bulkUpdateBuyerMastersByCountryAction} className="mt-3 rounded-md border border-blue-200 bg-blue-50 p-3">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-blue-900">수출국별 담당자 일괄 수정</p>
+            <span className="text-xs text-blue-700">선택한 수출국에 등록된 모든 바이어에 적용됩니다.</span>
+          </div>
+          <div className="grid grid-cols-[190px_160px_160px_minmax(260px,1fr)_auto] items-start gap-2">
+            <CountryCombobox name="exportCountry" countries={countries} />
+            <SalesOwnerSelect users={salesOwners} />
+            <OwnerSelect users={exportOwners} />
+            <SalesRecipientsPicker users={salesMailUsers.map((user) => ({ id: user.id, name: user.name, teamLabel: localTeamLabels[user.team] }))} />
+            <button className="btn-primary h-11 px-5">일괄 저장</button>
+          </div>
+        </form>
         <div className="mt-4 divide-y divide-slate-100">
           {displayedBuyers.map((buyer) => (
             <EditableBuyer key={buyer.id} buyer={buyer} salesOwners={salesOwners} exportOwners={exportOwners} salesMailUsers={salesMailUsers} countries={countries} />
