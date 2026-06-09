@@ -19,8 +19,12 @@ export function SalesRecipientsPicker({ users, initial = [] }: { users: Recipien
     setSelected((current) => [...current, user]);
   }
 
+  function removeRecipient(id: string) {
+    setSelected((current) => current.filter((item) => item.id !== id));
+  }
+
   return (
-    <div className="relative w-full">
+    <div className="relative w-full space-y-2">
       <input type="hidden" name="salesEmailRecipients" value={selectedNames} />
       <select
         className="h-11 w-full"
@@ -34,6 +38,23 @@ export function SalesRecipientsPicker({ users, initial = [] }: { users: Recipien
           </option>
         ))}
       </select>
+      {selected.length > 0 ? (
+        <div className="flex min-h-10 flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5">
+          {selected.map((user) => (
+            <span key={user.id} className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-sm text-blue-700">
+              {user.name}
+              <button
+                type="button"
+                className="rounded-full px-1 text-blue-500 hover:bg-blue-100 hover:text-blue-800"
+                onClick={() => removeRecipient(user.id)}
+                aria-label={`${user.name} 제거`}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

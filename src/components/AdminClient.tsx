@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { CountryCombobox } from "@/components/CountryCombobox";
 import { SalesRecipientsPicker } from "@/components/SalesRecipientsPicker";
 import { SearchableCombobox } from "@/components/SearchableCombobox";
-import { changePasswordAction, deleteAccountAction, deleteGenericAction, reorderDropdownAction, upsertBuyerMasterAction, upsertDropdownAction, upsertExportProductNameAction, upsertProductMasterAction } from "@/server/actions";
+import { bulkUpdateBuyerMastersByCountryAction, changePasswordAction, deleteAccountAction, deleteGenericAction, reorderDropdownAction, upsertBuyerMasterAction, upsertDropdownAction, upsertExportProductNameAction, upsertProductMasterAction } from "@/server/actions";
 
 type UserRow = { id: string; name: string; email: string; team: Team; createdAt: string };
 type ProductRow = { id: string; name: string; factory: Factory };
@@ -104,6 +104,7 @@ export function AdminClient({
   const displayedBuyers = filteredBuyers.slice(0, visibleBuyerCount);
   const displayedDropdowns = filteredDropdowns.slice(0, visibleDropdownCount);
   const displayedProductNames = filteredProductNames.slice(0, visibleDropdownCount);
+  const bulkBuyerCountry = countries.find((country) => country.toLowerCase() === buyerSearch.trim().toLowerCase());
 
   useEffect(() => setOrderedDropdowns(dropdowns), [dropdowns]);
   useEffect(() => {
@@ -210,6 +211,21 @@ export function AdminClient({
           <button className="btn-primary h-11">추가</button>
         </form>
         <SearchBox value={buyerSearch} onChange={setBuyerSearch} placeholder="수출국, 바이어명, 담당자 검색" />
+        {bulkBuyerCountry ? (
+          <form action={bulkUpdateBuyerMastersByCountryAction} className="mt-3 rounded-md border border-blue-200 bg-blue-50 p-3">
+            <input type="hidden" name="exportCountry" value={bulkBuyerCountry} />
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold text-blue-900">{bulkBuyerCountry} 바이어 {filteredBuyers.length}건 담당자 일괄 수정</p>
+              <span className="text-xs text-blue-700">저장 시 해당 수출국의 모든 바이어에 적용됩니다.</span>
+            </div>
+            <div className="grid grid-cols-[160px_160px_minmax(240px,1fr)_auto] items-start gap-2">
+              <SalesOwnerSelect users={salesOwners} />
+              <OwnerSelect users={exportOwners} />
+              <SalesRecipientsPicker users={salesMailUsers.map((user) => ({ id: user.id, name: user.name, teamLabel: localTeamLabels[user.team] }))} />
+              <button className="btn-primary h-11 px-5">일괄 저장</button>
+            </div>
+          </form>
+        ) : null}
         <div className="mt-4 divide-y divide-slate-100">
           {displayedBuyers.map((buyer) => (
             <EditableBuyer key={buyer.id} buyer={buyer} salesOwners={salesOwners} exportOwners={exportOwners} salesMailUsers={salesMailUsers} countries={countries} />
@@ -398,6 +414,7 @@ function EditableProduct({ product }: { product: ProductRow }) {
         </select>
         <div className="col-span-2 flex justify-end gap-2">
           <button className="btn-primary">저장</button>
+          <button className="btn" type="button" onClick={() => setEditing(false)}>취소</button>
         </div>
       </form>
     );
@@ -414,7 +431,7 @@ function EditableBuyer({ buyer, salesOwners, exportOwners, salesMailUsers, count
       setEditing(false);
     }
     return (
-      <form action={save} className="grid grid-cols-[190px_170px_110px_135px_135px_minmax(210px,1fr)_120px] items-start gap-2 py-2 text-sm">
+      <form action={save} className="grid grid-cols-[190px_170px_110px_135px_135px_minmax(210px,1fr)_150px] items-start gap-2 py-2 text-sm">
         <input type="hidden" name="id" value={buyer.id} />
         <CountryCombobox name="exportCountry" countries={countries} defaultValue={buyer.exportCountry} />
         <input className="h-11" name="buyerName" defaultValue={buyer.buyerName} required />
@@ -422,8 +439,9 @@ function EditableBuyer({ buyer, salesOwners, exportOwners, salesMailUsers, count
         <SalesOwnerSelect users={salesOwners} defaultValue={buyer.salesOwner} />
         <OwnerSelect users={exportOwners} defaultValue={buyer.exportOwner} />
         <SalesRecipientsPicker users={salesMailUsers.map((user) => ({ id: user.id, name: user.name, teamLabel: localTeamLabels[user.team] }))} initial={initial} />
-        <div>
+        <div className="flex gap-2">
           <button className="btn-primary h-11">저장</button>
+          <button className="btn h-11" type="button" onClick={() => setEditing(false)}>취소</button>
         </div>
       </form>
     );
@@ -455,7 +473,10 @@ function EditableDropdown({
         <input type="hidden" name="sortOrder" value={item.sortOrder} />
         <input name="label" defaultValue={item.label} placeholder={item.category === DropdownCategory.FORWARDER ? "포워딩사" : undefined} required />
         {item.category === DropdownCategory.FORWARDER ? <ForwarderValueFields defaultValue={item.value === item.label ? "" : item.value} compact /> : null}
-        <button className="btn-primary">저장</button>
+        <div className="flex gap-2">
+          <button className="btn-primary">저장</button>
+          <button className="btn" type="button" onClick={() => setEditing(false)}>취소</button>
+        </div>
       </form>
     );
   }
@@ -493,7 +514,10 @@ function EditableExportProductName({ item, countries, products }: { item: Export
         <ProductMasterNameCombobox products={products} defaultValue={item.productName} />
         <input name="englishName" defaultValue={item.englishName} required />
         <input name="productCode" defaultValue={item.productCode} required />
-        <button className="btn-primary">저장</button>
+        <div className="flex gap-2">
+          <button className="btn-primary">저장</button>
+          <button className="btn" type="button" onClick={() => setEditing(false)}>취소</button>
+        </div>
       </form>
     );
   }

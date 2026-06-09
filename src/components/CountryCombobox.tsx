@@ -1,6 +1,6 @@
 "use client";
 
-import { KeyboardEvent, useEffect, useMemo, useState } from "react";
+import { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 
 const initialConsonants = ["ㄱ", "ㄲ", "ㄴ", "ㄷ", "ㄸ", "ㄹ", "ㅁ", "ㅂ", "ㅃ", "ㅅ", "ㅆ", "ㅇ", "ㅈ", "ㅉ", "ㅊ", "ㅋ", "ㅌ", "ㅍ", "ㅎ"];
 
@@ -18,6 +18,7 @@ export function CountryCombobox({ name, countries, defaultValue = "" }: { name: 
   const [value, setValue] = useState(defaultValue ?? "");
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
   const normalizedCountries = useMemo(() => [...new Set(countries.filter(Boolean))], [countries]);
   const filtered = normalizedCountries
     .filter((country) => {
@@ -34,6 +35,15 @@ export function CountryCombobox({ name, countries, defaultValue = "" }: { name: 
     setValue(defaultValue ?? "");
     setOpen(false);
   }, [defaultValue]);
+
+  useEffect(() => {
+    function close(event: MouseEvent) {
+      if (containerRef.current?.contains(event.target as Node)) return;
+      setOpen(false);
+    }
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === "ArrowDown") {
@@ -55,7 +65,7 @@ export function CountryCombobox({ name, countries, defaultValue = "" }: { name: 
   }
 
   return (
-    <div className="relative w-full">
+    <div ref={containerRef} className="relative w-full">
       <input
         className="h-11 w-full"
         name={name}

@@ -1361,6 +1361,37 @@ export async function upsertBuyerMasterAction(formData: FormData) {
   revalidatePath("/admin");
 }
 
+export async function bulkUpdateBuyerMastersByCountryAction(formData: FormData) {
+  const user = await requireUser();
+  const exportCountry = formString(formData, "exportCountry");
+  const salesOwner = formString(formData, "salesOwner");
+  const exportOwner = formString(formData, "exportOwner");
+  const salesEmailRecipients = formData
+    .getAll("salesEmailRecipients")
+    .flatMap((value) => String(value).split(","))
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .filter((value, index, array) => array.indexOf(value) === index)
+    .join(", ");
+
+  if (!exportCountry || !salesOwner || !exportOwner) {
+    fail("/admin", "수출국, 영업담당자, 수출담당자를 모두 선택해주세요.");
+  }
+
+  await prisma.buyerMaster.updateMany({
+    where: { exportCountry },
+    data: {
+      salesOwner,
+      exportOwner,
+      salesEmailRecipients,
+      exportEmailRecipients: exportOwner,
+      contactPerson: exportOwner,
+      updatedById: user.id
+    }
+  });
+  revalidatePath("/admin");
+}
+
 export async function upsertDropdownAction(formData: FormData) {
   const user = await requireUser();
   const id = formString(formData, "id");
