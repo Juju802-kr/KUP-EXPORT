@@ -336,6 +336,7 @@ export function ShipmentDetailEditor({
         <input type="hidden" name="shipmentId" value={shipment.id} />
         {editingProduct ? <input type="hidden" name="id" value={editingProduct.id} /> : null}
         <input type="hidden" name="exportEmailRecipients" value="" />
+        <button type="submit" className="hidden" aria-hidden="true" tabIndex={-1} />
         <Box title={editingProduct ? "제품 수정" : "제품 추가"} columns={3}>
           <ProductMasterSelect products={productMasters} aliases={exportProductNames} current={productFormValue} onEnglishName={setAutoEnglishName} />
           <ProductInput label="일반박스 (58*44*47)" name="normalBoxQty" type="number" value={productFormValue.normalBoxQty} />
@@ -357,8 +358,8 @@ export function ShipmentDetailEditor({
           <ProductInput label="업로드 요청일" name="coaUploadRequestDate" type="date" value={productFormValue.coaUploadRequestDate} />
           <div className="col-span-3 grid grid-cols-[1fr_auto_auto_auto] gap-2">
             <LcConnect linkedLcId={shipment.linkedLcId} lcs={shipment.linkedLcId ? lcs : matchingLcs(lcs, productFormValue.productionRequestNo)} />
-            <button formAction={sendProductCoaMailAction} className="btn px-5">COA 메일</button>
-            <button className="btn-primary px-5">{editingProduct ? "수정" : "등록"}</button>
+            <button type="submit" formAction={sendProductCoaMailAction} className="btn px-5">COA 메일</button>
+            <button type="submit" className="btn-primary px-5">{editingProduct ? "수정" : "등록"}</button>
             {editingProduct ? <button type="button" className="btn px-5" onClick={resetProduct}>취소</button> : null}
           </div>
           {editingProduct ? <div className="col-span-3"><AttachmentLinks files={productAttachments.filter((file) => file.ownerId === editingProduct.id)} /></div> : null}
