@@ -7,7 +7,7 @@ import type { FormEvent, ReactNode } from "react";
 import { DeleteButton } from "@/components/DeleteButton";
 import { AppSelect } from "@/components/AppSelect";
 import { SearchableCombobox } from "@/components/SearchableCombobox";
-import { createProductAction, deleteProductAction, deleteShipmentAction, sendProductCoaMailAction, sendShipmentQuoteMailAction, sendShipmentRequestMailAction, sendShipmentScheduleMailAction, updateProductAction, updateShipmentAction } from "@/server/actions";
+import { createProductAction, deleteProductAction, deleteShipmentAction, sendProductCoaMailAction, sendShipmentQuoteMailAction, sendShipmentRequestMailAction, sendShipmentScheduleMailAction, updateProductAction, updateShipmentAction, updateShipmentKanbanStatusAction } from "@/server/actions";
 
 type Option = { id: string; value: string; label: string };
 type Options = {
@@ -140,6 +140,25 @@ export function ShipmentDetailEditor({
   const shipmentRequestDefault = shipment.emailSent?.includes("SHIPMENT_REQUEST_SENT") ? "update" : "new";
   const scheduleMailDefault = shipment.emailSent?.includes("SCHEDULE_MAIL_SENT") ? "change" : "new";
 
+  useEffect(() => {
+    setStatusValue(shipment.status);
+  }, [shipment.status]);
+
+  async function handleStatusChange(value: string) {
+    const status = value as ShipmentStatus;
+    if (status === statusValue) return;
+    const previous = statusValue;
+    setStatusValue(status);
+    const formData = new FormData();
+    formData.set("id", shipment.id);
+    formData.set("status", status);
+    try {
+      await updateShipmentKanbanStatusAction(formData);
+    } catch {
+      setStatusValue(previous);
+    }
+  }
+
   function editProduct(product: ProductRow) {
     setEditingProduct(product);
     setAutoEnglishName(null);
@@ -232,7 +251,7 @@ export function ShipmentDetailEditor({
             <div className="flex items-end justify-between gap-3">
               <div className="flex items-end gap-2">
                 <Field label="상태" compact>
-                  <AppSelect name="status" value={statusValue} onChange={(value) => setStatusValue(value as ShipmentStatus)} className="w-44" options={[
+                  <AppSelect name="status" value={statusValue} onChange={handleStatusChange} className="w-44" options={[
                     { value: "REQUEST_WAITING", label: "의뢰대기" },
                     { value: "SCHEDULE", label: "1. 스케줄" },
                     { value: "QUOTE", label: "★견적" },
