@@ -1180,6 +1180,17 @@ export async function sendProductCoaMailAction(formData: FormData) {
       </table>
     </div>
   `;
+  const coaStatusAdvance: ShipmentStatus[] = [ShipmentStatus.REQUEST_WAITING, ShipmentStatus.QUOTE, ShipmentStatus.SCHEDULE];
+  if (coaStatusAdvance.includes(shipment.status)) {
+    await prisma.shipmentRequest.update({
+      where: { id: shipmentId },
+      data: {
+        status: ShipmentStatus.SHIPPING_DOCS,
+        emailSent: appendEmailSentToken(shipment.emailSent, "COA_MAIL_SENT"),
+        updatedById: user.id
+      }
+    });
+  }
   emailQueueRedirect(`/shipments/${shipmentId}`, () =>
     sendProgramEmail({
       to: recipients,
