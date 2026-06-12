@@ -1096,9 +1096,10 @@ export async function sendShipmentScheduleMailAction(formData: FormData) {
 export async function sendShipmentQuoteMailAction(formData: FormData) {
   const user = await requireUser();
   const id = formString(formData, "id");
-  const shipment = await shipmentWithProducts(id);
-  if (!shipment) redirect(`/shipments/${id}`);
-  const forwarder = formString(formData, "forwarder") || shipment.forwarder || "";
+  const existing = await shipmentWithProducts(id);
+  if (!existing) redirect(`/shipments/${id}`);
+
+  const forwarder = formString(formData, "forwarder") || existing.forwarder || "";
   const forwarderOption = await prisma.dropdownOption.findFirst({
     where: { category: DropdownCategory.FORWARDER, label: forwarder },
     select: { value: true }
@@ -1107,17 +1108,25 @@ export async function sendShipmentQuoteMailAction(formData: FormData) {
   const normalizedForwarderValue = forwarderValue.replace(/\s+/g, "").toUpperCase();
   if (normalizedForwarderValue.includes("견적") && normalizedForwarderValue.includes("X")) fail(`/shipments/${id}`, "해당 포워딩사는 견적X로 설정되어 견적 요청 메일을 보낼 수 없습니다.");
   if (!forwarderValue.includes("@")) fail(`/shipments/${id}`, "포워딩사 이메일을 먼저 관리 페이지에 입력해주세요.");
-  const exportOwner = formString(formData, "exportOwner") || shipment.exportOwner || "";
+
+  await prisma.shipmentRequest.update({
+    where: { id },
+    data: { ...readShipmentForm(formData), status: ShipmentStatus.QUOTE, updatedById: user.id }
+  });
+  const shipment = await shipmentWithProducts(id);
+  if (!shipment) redirect(`/shipments/${id}`);
+
+  const exportOwner = shipment.exportOwner || "";
   const exportOwnerEmails = await resolveRecipientEmails([exportOwner], exportOwnerTeams);
   const recipients = [forwarderValue, ...exportOwnerEmails];
-  const exportCountry = formString(formData, "exportCountry") || shipment.exportCountry || "";
-  const transport = formString(formData, "transport") || shipment.transport || "";
-  const storageCondition = formString(formData, "storageCondition") || shipment.storageCondition || "";
-  const destinationPort = formString(formData, "destinationPort") || shipment.destinationPort || "";
-  const releaseDate = formDate(formData, "releaseDate") ?? shipment.releaseDate;
-  const usePt = formString(formData, "usePt") === "1" || shipment.usePt;
-  const ptQty = formString(formData, "ptQty") ? Math.round(formNumber(formData, "ptQty")) : shipment.ptQty;
-  const ptSpec = formString(formData, "ptSpec") || shipment.ptSpec || "";
+  const exportCountry = shipment.exportCountry || "";
+  const transport = shipment.transport || "";
+  const storageCondition = shipment.storageCondition || "";
+  const destinationPort = shipment.destinationPort || "";
+  const releaseDate = shipment.releaseDate;
+  const usePt = shipment.usePt;
+  const ptQty = shipment.ptQty;
+  const ptSpec = shipment.ptSpec || "";
   const subject = `[한국유나이티드제약]${exportCountry} 견적 요청의 건_${todayDotText()}`;
   const body = [
     '※ "전체답장"으로 메일 회신 부탁드립니다.',
@@ -1149,10 +1158,6 @@ export async function sendShipmentQuoteMailAction(formData: FormData) {
     `TEL : ${exportOwnerTel(exportOwner)}`,
     "FAX : 02-516-3724"
   ].join("\n");
-  await prisma.shipmentRequest.update({
-    where: { id },
-    data: { status: ShipmentStatus.QUOTE, usePt, ptQty, ptSpec: ptSpec || null, updatedById: user.id }
-  });
   emailQueueRedirect(`/shipments/${id}`, () => sendProgramEmail({ to: recipients, subject, body, createdById: user.id }));
 }
 export async function sendProductCoaMailAction(formData: FormData) {
