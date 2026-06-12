@@ -1029,12 +1029,40 @@ function appendEmailSentToken(current: string | null | undefined, token: string)
   return [...tokens].join(", ");
 }
 
+async function saveShipmentFromForm(formData: FormData, userId: string, extras: Record<string, unknown> = {}) {
+  const id = formString(formData, "id");
+  await prisma.shipmentRequest.update({
+    where: { id },
+    data: { ...readShipmentForm(formData), ...extras, updatedById: userId }
+  });
+  return shipmentWithProducts(id);
+}
+
+async function saveProductFromForm(formData: FormData, userId: string) {
+  const shipmentId = formString(formData, "shipmentId");
+  const id = formString(formData, "id");
+  const data = readProductForm(formData, userId);
+  const product = id
+    ? await prisma.shipmentProduct.update({ where: { id }, data: { ...omitCreatedBy(data), updatedById: userId } })
+    : await prisma.shipmentProduct.create({ data: { ...data, shipmentId } });
+  await Promise.all([recalcShipmentInvoice(shipmentId), autoLinkShipmentLc(shipmentId, userId)]);
+  return product;
+}
+
 export async function sendShipmentRequestMailAction(formData: FormData) {
   const user = await requireUser();
   const id = formString(formData, "id");
   const type = formString(formData, "shipmentRequestType") || "new";
-  const shipment = await shipmentWithProducts(id);
+  const existing = await shipmentWithProducts(id);
+  if (!existing) redirect(`/shipments/${id}`);
+
+  const extras =
+    type === "new"
+      ? { status: ShipmentStatus.SCHEDULE, emailSent: appendEmailSentToken(existing.emailSent, "SHIPMENT_REQUEST_SENT") }
+      : {};
+  const shipment = await saveShipmentFromForm(formData, user.id, extras);
   if (!shipment) redirect(`/shipments/${id}`);
+
   const recipients = [
     ...(await resolveRecipientEmails([shipment.salesEmailRecipients], salesMailTeams)),
     ...(await resolveRecipientEmails([shipment.exportOwner], exportOwnerTeams))
@@ -1054,12 +1082,6 @@ export async function sendShipmentRequestMailAction(formData: FormData) {
     "",
     `${appUrl()}/shipments/${shipment.id}`
   ].join("\n");
-  if (type === "new") {
-    await prisma.shipmentRequest.update({
-      where: { id },
-      data: { status: ShipmentStatus.SCHEDULE, emailSent: appendEmailSentToken(shipment.emailSent, "SHIPMENT_REQUEST_SENT"), updatedById: user.id }
-    });
-  }
   emailQueueRedirect(`/shipments/${id}`, () => sendProgramEmail({ to: recipients, subject, body, createdById: user.id }));
 }
 
@@ -1067,29 +1089,24 @@ export async function sendShipmentScheduleMailAction(formData: FormData) {
   const user = await requireUser();
   const id = formString(formData, "id");
   const type = formString(formData, "scheduleMailType") || "new";
-  const shipment = await shipmentWithProducts(id);
+  const existing = await shipmentWithProducts(id);
+  if (!existing) redirect(`/shipments/${id}`);
+
+  const extras = type === "new" ? { emailSent: appendEmailSentToken(existing.emailSent, "SCHEDULE_MAIL_SENT") } : {};
+  const shipment = await saveShipmentFromForm(formData, user.id, extras);
   if (!shipment) redirect(`/shipments/${id}`);
+
   const recipients = await resolveRecipientEmails([shipment.salesEmailRecipients], salesMailTeams);
-  const etd = formDate(formData, "etd") ?? shipment.etd;
-  const eta = formDate(formData, "eta") ?? shipment.eta;
-  const releaseDate = formDate(formData, "releaseDate") ?? shipment.releaseDate;
-  const transitFlight = formString(formData, "transitFlight") || shipment.transitFlight || "";
   const prefix = type === "change" ? "★변경★" : "";
-  const subject = `${prefix}출고: ${fmtDate(releaseDate)} ETD&ETA: ${dateTimeText(etd)} - ${dateTimeText(eta)} / ${transitFlight} / 제품: ${firstProductName(shipment.products)}`;
+  const subject = `${prefix}출고: ${fmtDate(shipment.releaseDate)} ETD&ETA: ${dateTimeText(shipment.etd)} - ${dateTimeText(shipment.eta)} / ${shipment.transitFlight || ""} / 제품: ${firstProductName(shipment.products)}`;
   const body = [
-    `출고: ${fmtDate(releaseDate)}`,
-    `ETD&ETA: ${dateTimeText(etd)} - ${dateTimeText(eta)} / ${transitFlight}`,
+    `출고: ${fmtDate(shipment.releaseDate)}`,
+    `ETD&ETA: ${dateTimeText(shipment.etd)} - ${dateTimeText(shipment.eta)} / ${shipment.transitFlight || ""}`,
     "",
     ...shipment.products.map(shipmentProductLine),
     "",
     `${appUrl()}/shipments/${shipment.id}`
   ].join("\n");
-  if (type === "new") {
-    await prisma.shipmentRequest.update({
-      where: { id },
-      data: { emailSent: appendEmailSentToken(shipment.emailSent, "SCHEDULE_MAIL_SENT"), updatedById: user.id }
-    });
-  }
   emailQueueRedirect(`/shipments/${id}`, () => sendProgramEmail({ to: recipients, subject, body, createdById: user.id }));
 }
 
@@ -1109,11 +1126,7 @@ export async function sendShipmentQuoteMailAction(formData: FormData) {
   if (normalizedForwarderValue.includes("견적") && normalizedForwarderValue.includes("X")) fail(`/shipments/${id}`, "해당 포워딩사는 견적X로 설정되어 견적 요청 메일을 보낼 수 없습니다.");
   if (!forwarderValue.includes("@")) fail(`/shipments/${id}`, "포워딩사 이메일을 먼저 관리 페이지에 입력해주세요.");
 
-  await prisma.shipmentRequest.update({
-    where: { id },
-    data: { ...readShipmentForm(formData), status: ShipmentStatus.QUOTE, updatedById: user.id }
-  });
-  const shipment = await shipmentWithProducts(id);
+  const shipment = await saveShipmentFromForm(formData, user.id, { status: ShipmentStatus.QUOTE });
   if (!shipment) redirect(`/shipments/${id}`);
 
   const exportOwner = shipment.exportOwner || "";
@@ -1163,16 +1176,17 @@ export async function sendShipmentQuoteMailAction(formData: FormData) {
 export async function sendProductCoaMailAction(formData: FormData) {
   const user = await requireUser();
   const shipmentId = formString(formData, "shipmentId");
+  const product = await saveProductFromForm(formData, user.id);
   const shipment = await shipmentWithProducts(shipmentId);
   if (!shipment) redirect(`/shipments/${shipmentId}`);
-  const factory = formString(formData, "factory");
-  const productName = formString(formData, "productName");
+  const factory = product.factory || "";
+  const productName = product.productName || "";
   const factoryTeam = factory === "JEONDONG" ? Team.JEONDONG_QA : Team.SEOMYEON_QA;
   const factoryUsers = await prisma.user.findMany({ where: { team: factoryTeam }, select: { email: true } });
   const exportOwnerEmails = await resolveRecipientEmails([shipment.exportOwner], exportOwnerTeams);
   const recipients = [...factoryUsers.map((item) => item.email), ...exportOwnerEmails];
   const today = fmtDate(new Date());
-  const uploadRequestDate = fmtDate(formDate(formData, "coaUploadRequestDate"));
+  const uploadRequestDate = fmtDate(product.coaUploadRequestDate);
   const factoryLabel = factory === "JEONDONG" ? "전동" : "서면";
   const cellStyle = "border:1px solid #222;padding:8px 10px;text-align:center;vertical-align:middle;";
   const body = `
@@ -1195,9 +1209,9 @@ export async function sendProductCoaMailAction(formData: FormData) {
             <td style="${cellStyle}">${uploadRequestDate}</td>
             <td style="${cellStyle}">${shipment.exportCountry || ""}</td>
             <td style="${cellStyle}">${productName}</td>
-            <td style="${cellStyle}">${formString(formData, "lotNo")}</td>
+            <td style="${cellStyle}">${product.lotNo || ""}</td>
             <td style="${cellStyle}">${fmtDate(shipment.releaseDate)}</td>
-            <td style="${cellStyle}">${formString(formData, "changeNote")}</td>
+            <td style="${cellStyle}">${product.changeNote || ""}</td>
           </tr>
         </tbody>
       </table>
