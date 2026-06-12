@@ -1,8 +1,9 @@
 import { DropdownCategory, DropdownOption } from "@prisma/client";
-import { ShipmentForm } from "@/components/ShipmentForm";
+import { ShipmentNewPage } from "@/components/ShipmentNewPage";
 import { prisma } from "@/lib/prisma";
 
-export default async function NewShipmentPage() {
+export default async function NewShipmentPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+  const params = await searchParams;
   const [dropdowns, buyers] = await Promise.all([
     prisma.dropdownOption.findMany({ orderBy: [{ category: "asc" }, { sortOrder: "asc" }] }),
     prisma.buyerMaster.findMany({ orderBy: { buyerName: "asc" } })
@@ -14,7 +15,8 @@ export default async function NewShipmentPage() {
   return (
     <div className="space-y-5">
       <h1 className="text-2xl font-semibold">선적의뢰 등록</h1>
-      <ShipmentForm
+      <ShipmentNewPage
+        draftKey={params.draft}
         options={options}
         buyers={buyers.map((buyer) => ({
           id: buyer.id,

@@ -183,8 +183,328 @@ export async function createShipmentAction(formData: FormData) {
     data: { ...readShipmentForm(formData), reporter: user.name, shipNo: await nextShipNo(), sortOrder: await nextShipmentSortOrder(salesOwner), createdById: user.id, updatedById: user.id }
   });
   await saveAttachments(formData.getAll("files").filter((f): f is File => f instanceof File), "SHIPMENT", shipment.id, user.id);
+
+  const orderProducts = parseOrderProductDrafts(formString(formData, "orderProductsJson"));
+  if (orderProducts.length) {
+    for (const product of orderProducts) {
+      const bxQtyPaid = Math.round(Number(product.bxQtyPaid) || 0);
+      const bxQtyFoc = Math.round(Number(product.bxQtyFoc) || 0);
+      const exportUnitPrice = Number(product.exportUnitPrice) || 0;
+      await prisma.shipmentProduct.create({
+        data: {
+          shipmentId: shipment.id,
+          productName: product.productName || product.englishName || "제품명 미입력",
+          englishName: product.englishName || "",
+          productionRequestNo: product.productionRequestNo || "",
+          piNo: product.piNo || "",
+          exportUnitPrice,
+          bxQtyPaid,
+          bxQtyFoc,
+          bxQtyTotal: bxQtyPaid + bxQtyFoc,
+          amount: exportUnitPrice * bxQtyPaid,
+          createdById: user.id,
+          updatedById: user.id
+        }
+      });
+    }
+    await Promise.all([recalcShipmentInvoice(shipment.id), autoLinkShipmentLc(shipment.id, user.id)]);
+  }
+
   revalidatePath("/shipments");
   redirect(`/shipments/${shipment.id}`);
+}
+
+export async function createShipmentFromOrderAction(formData: FormData) {
+  const user = await requireUser();
+  const buyer = formString(formData, "buyer");
+  const exportCountry = formString(formData, "exportCountry");
+  if (!buyer) fail("/orders", "바이어 정보가 없어 선적의뢰를 만들 수 없습니다.");
+
+  const buyerMaster = await prisma.buyerMaster.findFirst({ where: { buyerName: buyer }, orderBy: { updatedAt: "desc" } });
+  const salesOwner = buyerMaster?.salesOwner || user.name;
+  const shipment = await prisma.shipmentRequest.create({
+    data: {
+      status: ShipmentStatus.REQUEST_WAITING,
+      exportCountry: exportCountry || buyerMaster?.exportCountry || "",
+      buyer,
+      currency: buyerMaster?.defaultCurrency || "USD",
+      salesOwner,
+      exportOwner: buyerMaster?.exportOwner || "",
+      salesEmailRecipients: buyerMaster?.salesEmailRecipients || "",
+      exportEmailRecipients: buyerMaster?.exportOwner || "",
+      contactPerson: buyerMaster?.exportOwner || "",
+      reporter: user.name,
+      shipNo: await nextShipNo(),
+      sortOrder: await nextShipmentSortOrder(salesOwner),
+      createdById: user.id,
+      updatedById: user.id
+    }
+  });
+
+  const productName = formString(formData, "productName");
+  const englishName = formString(formData, "englishName");
+  const productionRequestNo = formString(formData, "productionRequestNo");
+  const piNo = formString(formData, "piNo");
+  if (productName || englishName || productionRequestNo || piNo) {
+    await prisma.shipmentProduct.create({
+      data: {
+        shipmentId: shipment.id,
+        productName: productName || englishName || "제품명 미입력",
+        englishName,
+        productionRequestNo,
+        piNo,
+        createdById: user.id,
+        updatedById: user.id
+      }
+    });
+  }
+
+  revalidatePath("/orders");
+  revalidatePath("/shipments");
+  redirect(`/shipments/${shipment.id}`);
+}
+
+function piDateFromPiNo(piNo: string) {
+  const match = piNo.match(/KUP-(\d{2})(\d{2})(\d{2})/i);
+  if (!match) return null;
+  const date = new Date(Date.UTC(Number(`20${match[1]}`), Number(match[2]) - 1, Number(match[3])));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function parseJsonArray(raw: string) {
+  if (!raw) return [] as unknown[];
+  try {
+    const value = JSON.parse(raw);
+    return Array.isArray(value) ? value : [];
+  } catch {
+    return [];
+  }
+}
+
+type OrderProductDraftInput = {
+  productName?: string;
+  englishName?: string;
+  productionRequestNo?: string;
+  piNo?: string;
+  exportUnitPrice?: number;
+  bxQtyPaid?: number;
+  bxQtyFoc?: number;
+};
+
+function parseOrderProductDrafts(raw: string): OrderProductDraftInput[] {
+  return parseJsonArray(raw) as OrderProductDraftInput[];
+}
+
+type OrderBoardRowFields = Record<string, string>;
+
+function buildOrderEntryDataFromFields(fields: OrderBoardRowFields, userId: string) {
+  const unitPrice = Number(fields.unitPrice) || 0;
+  const quantity = Math.round(Number(fields.quantity) || 0);
+  const orderAmount = Number(fields.orderAmount) || unitPrice * quantity;
+
+  let shipmentLines = parseJsonArray(fields.shipmentLinesJson ?? "");
+  let paymentLines = parseJsonArray(fields.paymentLinesJson ?? "");
+
+  if (!shipmentLines.length) {
+    const invNo = fields.invNo ?? "";
+    const etd = fields.etd ?? "";
+    const lotNo = fields.lotNo ?? "";
+    const shipQty = Math.round(Number(fields.shipmentQuantity) || 0);
+    const shipFocQty = Math.round(Number(fields.shipmentFocQuantity) || 0);
+    const shipAmount = Number(fields.shipmentAmount) || 0;
+    if (invNo || etd || lotNo || shipQty || shipFocQty || shipAmount) {
+      shipmentLines = [{ invNo, etd, lotNo, quantity: shipQty, focQuantity: shipFocQty, amount: shipAmount }];
+    }
+  } else if (shipmentLines.length === 1) {
+    const line = shipmentLines[0] as Record<string, unknown>;
+    shipmentLines = [{
+      invNo: "invNo" in fields ? (fields.invNo ?? "") : String(line.invNo ?? ""),
+      etd: "etd" in fields ? (fields.etd ?? "") : String(line.etd ?? ""),
+      lotNo: "lotNo" in fields ? (fields.lotNo ?? "") : String(line.lotNo ?? ""),
+      quantity: "shipmentQuantity" in fields ? Math.round(Number(fields.shipmentQuantity) || 0) : Number(line.quantity) || 0,
+      focQuantity: "shipmentFocQuantity" in fields ? Math.round(Number(fields.shipmentFocQuantity) || 0) : Number(line.focQuantity) || 0,
+      amount: "shipmentAmount" in fields ? Number(fields.shipmentAmount) || 0 : Number(line.amount) || 0
+    }];
+  }
+
+  if (!paymentLines.length) {
+    const type = fields.paymentType ?? "";
+    const date = fields.paymentDate ?? "";
+    const amount = Number(fields.paymentAmount) || 0;
+    if (type || date || amount) {
+      paymentLines = [{ type: type || "T/T", date, amount, source: "수동" }];
+    }
+  } else if (paymentLines.length === 1) {
+    const line = paymentLines[0] as Record<string, unknown>;
+    paymentLines = [{
+      type: "paymentType" in fields ? (fields.paymentType || "T/T") : String(line.type ?? "T/T"),
+      date: "paymentDate" in fields ? (fields.paymentDate ?? "") : String(line.date ?? ""),
+      amount: "paymentAmount" in fields ? Number(fields.paymentAmount) || 0 : Number(line.amount) || 0,
+      source: String(line.source ?? "수동")
+    }];
+  }
+
+  return {
+    exportCountry: fields.exportCountry ?? "",
+    buyer: fields.buyer ?? "",
+    piDate: fields.piDate ? new Date(`${fields.piDate}T00:00:00.000Z`) : piDateFromPiNo(fields.piNo ?? ""),
+    piNo: fields.piNo ?? "",
+    productionRequestNo: fields.productionRequestNo ?? "",
+    productName: fields.productName ?? "",
+    unitPrice,
+    quantity,
+    focQuantity: Math.round(Number(fields.orderFocQuantity) || 0),
+    amount: orderAmount,
+    note: fields.note ?? "",
+    shipmentLines,
+    paymentLines,
+    updatedById: userId
+  };
+}
+
+function formDataToFields(formData: FormData): OrderBoardRowFields {
+  const fields: OrderBoardRowFields = {};
+  for (const [key, value] of formData.entries()) {
+    if (typeof value === "string") fields[key] = value;
+  }
+  return fields;
+}
+
+export async function saveOrderBoardRowAction(formData: FormData) {
+  const user = await requireUser();
+  const owner = formString(formData, "owner") || user.name;
+  const sheet = formString(formData, "sheet");
+  const rowKey = formString(formData, "rowKey");
+  const data = buildOrderEntryDataFromFields(formDataToFields(formData), user.id);
+
+  if (rowKey.startsWith("entry:")) {
+    await prisma.orderEntry.update({ where: { id: rowKey.slice(6) }, data });
+  } else {
+    await prisma.orderEntry.create({
+      data: { ...data, salesOwner: owner, createdById: user.id }
+    });
+  }
+
+  revalidatePath("/orders");
+  redirect(`/orders?owner=${encodeURIComponent(owner)}&sheet=${encodeURIComponent(sheet)}`);
+}
+
+export async function saveAllOrderBoardRowsAction(formData: FormData) {
+  const user = await requireUser();
+  const owner = formString(formData, "owner") || user.name;
+  const sheet = formString(formData, "sheet");
+  const rows = parseJsonArray(formString(formData, "rowsPayload")) as OrderBoardRowFields[];
+
+  const writes = rows.map((fields) => {
+    const rowKey = fields.rowKey ?? "";
+    const data = buildOrderEntryDataFromFields(fields, user.id);
+    if (rowKey.startsWith("entry:")) {
+      return prisma.orderEntry.update({ where: { id: rowKey.slice(6) }, data });
+    }
+    return prisma.orderEntry.create({
+      data: { ...data, salesOwner: owner, createdById: user.id }
+    });
+  });
+
+  if (writes.length) await prisma.$transaction(writes);
+
+  revalidatePath("/orders");
+  return { ok: true as const, count: writes.length };
+}
+
+export async function saveOrderEntriesAction(formData: FormData) {
+  const user = await requireUser();
+  const owner = formString(formData, "owner") || user.name;
+  const rowCount = formData.getAll("rowKey").length;
+  const buyerNames = Array.from({ length: rowCount }, (_, index) => formString(formData, `buyer-${index}`)).filter(Boolean);
+  const buyers = buyerNames.length
+    ? await prisma.buyerMaster.findMany({ where: { buyerName: { in: buyerNames } }, select: { buyerName: true, exportCountry: true } })
+    : [];
+  const countryByBuyer = new Map(buyers.map((buyer) => [buyer.buyerName, buyer.exportCountry]));
+
+  const creates = [];
+  for (let index = 0; index < rowCount; index += 1) {
+    const buyer = formString(formData, `buyer-${index}`);
+    const piNo = formString(formData, `piNo-${index}`);
+    const productionRequestNo = formString(formData, `productionRequestNo-${index}`);
+    const productName = formString(formData, `productName-${index}`);
+    const unitPrice = formNumber(formData, `unitPrice-${index}`);
+    const quantity = formNumber(formData, `quantity-${index}`);
+    const hasValue = buyer || piNo || productionRequestNo || productName || unitPrice || quantity;
+    if (!hasValue) continue;
+    creates.push(
+      prisma.orderEntry.create({
+        data: {
+          salesOwner: owner,
+          exportCountry: formString(formData, `exportCountry-${index}`) || countryByBuyer.get(buyer) || "",
+          buyer,
+          piDate: formDate(formData, `piDate-${index}`) || piDateFromPiNo(piNo),
+          piNo,
+          productionRequestNo,
+          productName,
+          unitPrice,
+          quantity,
+          amount: unitPrice * quantity,
+          createdById: user.id,
+          updatedById: user.id
+        }
+      })
+    );
+  }
+  if (creates.length) await prisma.$transaction(creates);
+  revalidatePath("/orders");
+  redirect(`/orders?owner=${encodeURIComponent(owner)}`);
+}
+
+export async function registerSalesOrderAction(formData: FormData) {
+  const user = await requireUser();
+  const owner = formString(formData, "owner") || user.name;
+  const orderKey = formString(formData, "orderKey");
+  if (!orderKey) fail(`/orders?owner=${encodeURIComponent(owner)}`, "등록할 오더를 찾을 수 없습니다.");
+  await prisma.salesRegistration.upsert({
+    where: { orderKey_salesOwner: { orderKey, salesOwner: owner } },
+    update: {
+      exportCountry: formString(formData, "exportCountry"),
+      buyer: formString(formData, "buyer"),
+      piNo: formString(formData, "piNo"),
+      productionRequestNo: formString(formData, "productionRequestNo"),
+      amount: formNumber(formData, "amount"),
+      registeredAt: formDate(formData, "registeredAt") || new Date(),
+      status: "REGISTERED",
+      note: formString(formData, "note"),
+      updatedById: user.id
+    },
+    create: {
+      orderKey,
+      salesOwner: owner,
+      exportCountry: formString(formData, "exportCountry"),
+      buyer: formString(formData, "buyer"),
+      piNo: formString(formData, "piNo"),
+      productionRequestNo: formString(formData, "productionRequestNo"),
+      amount: formNumber(formData, "amount"),
+      registeredAt: formDate(formData, "registeredAt") || new Date(),
+      status: "REGISTERED",
+      note: formString(formData, "note"),
+      createdById: user.id,
+      updatedById: user.id
+    }
+  });
+  revalidatePath("/orders");
+  redirect(`/orders?owner=${encodeURIComponent(owner)}&sheet=${encodeURIComponent(formString(formData, "sheet"))}`);
+}
+
+export async function cancelSalesOrderRegistrationAction(formData: FormData) {
+  const user = await requireUser();
+  const owner = formString(formData, "owner") || user.name;
+  const orderKey = formString(formData, "orderKey");
+  if (orderKey) {
+    await prisma.salesRegistration.updateMany({
+      where: { orderKey, salesOwner: owner },
+      data: { status: "CANCELED", updatedById: user.id }
+    });
+  }
+  revalidatePath("/orders");
+  redirect(`/orders?owner=${encodeURIComponent(owner)}&sheet=${encodeURIComponent(formString(formData, "sheet"))}`);
 }
 
 export async function updateShipmentAction(formData: FormData) {
