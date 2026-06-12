@@ -296,9 +296,9 @@ export function ShipmentDetailEditor({
 
             <Box title="선적 관리란" columns={1}>
               <input type="hidden" name="usePt" value={usePt ? "1" : "0"} />
-              <FormRow columns={3}>
-                <Field label=" ">
-                  <label className="inline-flex h-11 items-center gap-2 text-sm font-medium text-slate-700">
+              <div className="grid grid-cols-[auto_1fr_1fr] items-end gap-3">
+                <div className="flex h-11 items-center">
+                  <label className="inline-flex items-center gap-2 whitespace-nowrap text-sm font-medium text-slate-700">
                     <input
                       type="checkbox"
                       checked={usePt}
@@ -307,11 +307,11 @@ export function ShipmentDetailEditor({
                     />
                     PT
                   </label>
-                </Field>
+                </div>
                 {usePt ? (
                   <>
-                    <InputBox label="PT개수" name="ptQty" type="number" value={String(shipment.ptQty ?? "")} />
-                    <InputBox label="PT규격" name="ptSpec" value={shipment.ptSpec} />
+                    <InputBox label="총P/T개수" name="ptQty" type="number" value={String(shipment.ptQty ?? "")} />
+                    <InputBox label="P/T사이즈" name="ptSpec" value={shipment.ptSpec} />
                   </>
                 ) : (
                   <>
@@ -319,7 +319,7 @@ export function ShipmentDetailEditor({
                     <ReadonlyBox label="전동 총CT" value={summary.jeondongCt || "-"} />
                   </>
                 )}
-              </FormRow>
+              </div>
               <FormRow columns={3}>
                 <SelectBox label="포워딩" name="forwarder" value={shipment.forwarder} options={options.forwarder} />
                 <SelectBox label="출발항" name="departurePort" value={shipment.departurePort} options={options.departurePort} />

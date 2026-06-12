@@ -1001,10 +1001,8 @@ function shipmentQuoteVolumeLines(
 ) {
   if (options?.usePt) {
     const qty = Number(options.ptQty ?? 0);
-    const lines = [`총PT: 총 ${qty.toLocaleString("ko-KR")}개`];
-    const spec = options.ptSpec?.trim();
-    if (spec) lines.push(spec);
-    return lines;
+    const spec = options.ptSpec?.trim() ?? "";
+    return [`물량: 총 ${qty.toLocaleString("ko-KR")} P/T`, `P/T사이즈: ${spec}`];
   }
   const boxRows = [
     { qty: products.reduce((sum, product) => sum + Number(product.normalBoxQty ?? 0), 0), size: "58*44*47" },
