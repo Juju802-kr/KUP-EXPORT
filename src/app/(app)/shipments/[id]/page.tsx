@@ -105,6 +105,9 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
         invoiceValue: Number(shipment.invoiceValue),
         freightTotal: Number(shipment.freightTotal),
         dispatchNote: shipment.dispatchNote,
+        usePt: shipment.usePt,
+        ptQty: shipment.ptQty,
+        ptSpec: shipment.ptSpec,
         linkedLcId: autoLinkedLc?.id ?? null,
         products: shipment.products.map((product) => ({
           id: product.id,

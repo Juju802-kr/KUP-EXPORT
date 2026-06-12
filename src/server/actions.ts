@@ -221,6 +221,9 @@ function readShipmentForm(formData: FormData) {
     lcSd: formString(formData, "lcSd"),
     freightTotal: formNumber(formData, "freightTotal"),
     dispatchNote: formString(formData, "dispatchNote"),
+    usePt: formString(formData, "usePt") === "1",
+    ptQty: Math.round(formNumber(formData, "ptQty")),
+    ptSpec: formString(formData, "ptSpec"),
     salesOwner: formString(formData, "salesOwner"),
     exportOwner: formString(formData, "exportOwner"),
     salesEmailRecipients: formData.getAll("salesEmailRecipients").map(String).filter(Boolean).join(", "),
@@ -987,12 +990,22 @@ function exportOwnerTel(name?: string | null) {
   return "82-2-6188-7856";
 }
 
-function shipmentQuoteVolumeLines(products: Array<{
-  normalBoxQty?: number | null;
-  iceBoxQty?: number | null;
-  injectionBoxQty?: number | null;
-  commonBoxQty?: number | null;
-}>) {
+function shipmentQuoteVolumeLines(
+  products: Array<{
+    normalBoxQty?: number | null;
+    iceBoxQty?: number | null;
+    injectionBoxQty?: number | null;
+    commonBoxQty?: number | null;
+  }>,
+  options?: { usePt?: boolean; ptQty?: number; ptSpec?: string | null }
+) {
+  if (options?.usePt) {
+    const qty = Number(options.ptQty ?? 0);
+    const lines = [`총PT: 총 ${qty.toLocaleString("ko-KR")}개`];
+    const spec = options.ptSpec?.trim();
+    if (spec) lines.push(spec);
+    return lines;
+  }
   const boxRows = [
     { qty: products.reduce((sum, product) => sum + Number(product.normalBoxQty ?? 0), 0), size: "58*44*47" },
     { qty: products.reduce((sum, product) => sum + Number(product.iceBoxQty ?? 0), 0), size: "57*51*49" },
@@ -1000,7 +1013,7 @@ function shipmentQuoteVolumeLines(products: Array<{
     { qty: products.reduce((sum, product) => sum + Number(product.commonBoxQty ?? 0), 0), size: "44*33*27" }
   ].filter((row) => row.qty > 0);
   const totalCt = boxRows.reduce((sum, row) => sum + row.qty, 0);
-  return [`\uCD1D\uCE74\uD1A4: \uCD1D ${totalCt.toLocaleString("ko-KR")}CT`, ...boxRows.map((row) => `${row.qty.toLocaleString("ko-KR")}CT(${row.size})`)];
+  return [`총카톤: 총 ${totalCt.toLocaleString("ko-KR")}CT`, ...boxRows.map((row) => `${row.qty.toLocaleString("ko-KR")}CT(${row.size})`)];
 }
 
 function shipmentGrossWeightText(products: Array<{ grossWeight?: unknown }>) {
@@ -1104,6 +1117,9 @@ export async function sendShipmentQuoteMailAction(formData: FormData) {
   const storageCondition = formString(formData, "storageCondition") || shipment.storageCondition || "";
   const destinationPort = formString(formData, "destinationPort") || shipment.destinationPort || "";
   const releaseDate = formDate(formData, "releaseDate") ?? shipment.releaseDate;
+  const usePt = formString(formData, "usePt") === "1" || shipment.usePt;
+  const ptQty = formString(formData, "ptQty") ? Math.round(formNumber(formData, "ptQty")) : shipment.ptQty;
+  const ptSpec = formString(formData, "ptSpec") || shipment.ptSpec || "";
   const subject = `[한국유나이티드제약]${exportCountry} 견적 요청의 건_${todayDotText()}`;
   const body = [
     '※ "전체답장"으로 메일 회신 부탁드립니다.',
@@ -1117,7 +1133,7 @@ export async function sendShipmentQuoteMailAction(formData: FormData) {
     `목적항: ${destinationPort}`,
     `입고예정일: ${fmtDate(releaseDate)}`,
     "",
-    ...shipmentQuoteVolumeLines(shipment.products),
+    ...shipmentQuoteVolumeLines(shipment.products, { usePt, ptQty, ptSpec }),
     "",
     `GW: ${shipmentGrossWeightText(shipment.products)}KGS`,
     "",
@@ -1135,7 +1151,10 @@ export async function sendShipmentQuoteMailAction(formData: FormData) {
     `TEL : ${exportOwnerTel(exportOwner)}`,
     "FAX : 02-516-3724"
   ].join("\n");
-  await prisma.shipmentRequest.update({ where: { id }, data: { status: ShipmentStatus.QUOTE, updatedById: user.id } });
+  await prisma.shipmentRequest.update({
+    where: { id },
+    data: { status: ShipmentStatus.QUOTE, usePt, ptQty, ptSpec: ptSpec || null, updatedById: user.id }
+  });
   emailQueueRedirect(`/shipments/${id}`, () => sendProgramEmail({ to: recipients, subject, body, createdById: user.id }));
 }
 export async function sendProductCoaMailAction(formData: FormData) {

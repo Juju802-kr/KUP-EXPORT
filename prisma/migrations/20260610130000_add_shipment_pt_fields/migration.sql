@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "ShipmentRequest" ADD COLUMN "usePt" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "ShipmentRequest" ADD COLUMN "ptQty" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "ShipmentRequest" ADD COLUMN "ptSpec" TEXT;

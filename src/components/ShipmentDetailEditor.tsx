@@ -79,6 +79,9 @@ type ShipmentValue = {
   invoiceValue: unknown;
   freightTotal: unknown;
   dispatchNote: string | null;
+  usePt: boolean;
+  ptQty: number;
+  ptSpec: string | null;
   linkedLcId: string | null;
   products: ProductRow[];
 };
@@ -136,6 +139,7 @@ export function ShipmentDetailEditor({
   const productAction = editingProduct ? updateProductAction : createProductAction;
   const summary = useMemo(() => shipmentSummary(shipment), [shipment]);
   const [statusValue, setStatusValue] = useState<ShipmentStatus>(shipment.status);
+  const [usePt, setUsePt] = useState(shipment.usePt);
   const [showBuyerNote, setShowBuyerNote] = useState(false);
   const shipmentRequestDefault = shipment.emailSent?.includes("SHIPMENT_REQUEST_SENT") ? "update" : "new";
   const scheduleMailDefault = shipment.emailSent?.includes("SCHEDULE_MAIL_SENT") ? "change" : "new";
@@ -143,6 +147,10 @@ export function ShipmentDetailEditor({
   useEffect(() => {
     setStatusValue(shipment.status);
   }, [shipment.status]);
+
+  useEffect(() => {
+    setUsePt(shipment.usePt);
+  }, [shipment.usePt]);
 
   async function handleStatusChange(value: string) {
     const status = value as ShipmentStatus;
@@ -287,9 +295,30 @@ export function ShipmentDetailEditor({
             </div>
 
             <Box title="선적 관리란" columns={1}>
-              <FormRow>
-                <ReadonlyBox label="서면 총CT" value={summary.seomyeonCt || "-"} />
-                <ReadonlyBox label="전동 총CT" value={summary.jeondongCt || "-"} />
+              <input type="hidden" name="usePt" value={usePt ? "1" : "0"} />
+              <FormRow columns={3}>
+                <Field label=" ">
+                  <label className="inline-flex h-11 items-center gap-2 text-sm font-medium text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={usePt}
+                      onChange={(event) => setUsePt(event.target.checked)}
+                      className="h-4 w-4 cursor-pointer"
+                    />
+                    PT
+                  </label>
+                </Field>
+                {usePt ? (
+                  <>
+                    <InputBox label="PT개수" name="ptQty" type="number" value={String(shipment.ptQty ?? "")} />
+                    <InputBox label="PT규격" name="ptSpec" value={shipment.ptSpec} />
+                  </>
+                ) : (
+                  <>
+                    <ReadonlyBox label="서면 총CT" value={summary.seomyeonCt || "-"} />
+                    <ReadonlyBox label="전동 총CT" value={summary.jeondongCt || "-"} />
+                  </>
+                )}
               </FormRow>
               <FormRow columns={3}>
                 <SelectBox label="포워딩" name="forwarder" value={shipment.forwarder} options={options.forwarder} />
