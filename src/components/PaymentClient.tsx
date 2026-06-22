@@ -3,7 +3,7 @@
 import { PaymentLcKind, Team } from "@prisma/client";
 import { useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { CountryCombobox } from "@/components/CountryCombobox";
 import { AppSelect } from "@/components/AppSelect";
 import { DeleteButton } from "@/components/DeleteButton";
@@ -295,7 +295,7 @@ function TTSection({
               </button>
               <RowButton onClick={() => startEdit(payment)}>{payment.productionRequestNo || "-"}</RowButton>
               <RowButton onClick={() => startEdit(payment)}>{payment.invNo || "-"}</RowButton>
-              <AttachmentLinks files={attachments.filter((file) => file.ownerId === payment.id || isPaymentTtConfirmAttachment(file.ownerId, payment.id))} />
+              <AttachmentLinks truncate files={attachments.filter((file) => file.ownerId === payment.id || isPaymentTtConfirmAttachment(file.ownerId, payment.id))} />
               <DeletePaymentForm id={payment.id} type="tt" />
             </div>
           ))}
@@ -454,7 +454,7 @@ function LCSection({
               <RowButton onClick={() => startEdit(payment)}>{payment.productionRequestNo || "-"}</RowButton>
               <RowButton onClick={() => startEdit(payment)}>{payment.lcNo || "-"}</RowButton>
               <RowButton onClick={() => startEdit(payment)} muted>{payment.lcSd || "-"}</RowButton>
-              <AttachmentLinks files={attachments.filter((file) => file.ownerId === payment.id)} />
+              <AttachmentLinks truncate files={attachments.filter((file) => file.ownerId === payment.id)} />
               <DeletePaymentForm id={payment.id} type="lc" />
             </div>
           ))}
@@ -673,38 +673,32 @@ function AttachmentLinks({
   files,
   showEmpty = false,
   deletable = false,
+  truncate = false,
   paymentId,
   tab
 }: {
   files: AttachmentRow[];
   showEmpty?: boolean;
   deletable?: boolean;
+  truncate?: boolean;
   paymentId?: string;
   tab?: "tt" | "lc";
 }) {
   if (!files.length) return showEmpty ? <span className="text-xs text-slate-400">첨부파일 없음</span> : <span className="text-xs text-slate-400">-</span>;
   return (
-    <div className="flex flex-col gap-1">
+    <div className={`flex flex-col gap-1 ${truncate ? "min-w-0 overflow-hidden" : ""}`}>
       {files.map((file) => (
-        <span key={file.id} className="inline-flex flex-wrap items-center gap-1.5">
-          <a href={file.path} className="break-all text-xs font-medium text-blue-700 hover:underline" download={file.originalName} title={file.originalName}>
+        <span key={file.id} className={truncate ? "flex min-w-0 items-center" : "inline-flex flex-wrap items-center gap-1.5"}>
+          <a
+            href={file.path}
+            className={truncate ? "min-w-0 truncate text-xs font-medium text-blue-700 hover:underline" : "break-all text-xs font-medium text-blue-700 hover:underline"}
+            download={file.originalName}
+            title={file.originalName}
+          >
             {file.mimeType?.startsWith("image/") ? "이미지 " : "파일 "} {file.originalName}
           </a>
           {deletable && paymentId && tab ? (
-            <button
-              type="submit"
-              formAction={deletePaymentAttachmentAction}
-              name="attachmentId"
-              value={file.id}
-              className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-sm leading-none text-slate-400 hover:bg-red-50 hover:text-red-600"
-              title="첨부파일 삭제"
-              aria-label={`${file.originalName} 삭제`}
-              onClick={(event) => {
-                if (!confirm("이 첨부파일을 삭제할까요?")) event.preventDefault();
-              }}
-            >
-              ×
-            </button>
+            <AttachmentDeleteButton attachmentId={file.id} paymentId={paymentId} tab={tab} fileName={file.originalName} />
           ) : null}
         </span>
       ))}
@@ -712,4 +706,40 @@ function AttachmentLinks({
   );
 }
 
+function AttachmentDeleteButton({
+  attachmentId,
+  paymentId,
+  tab,
+  fileName
+}: {
+  attachmentId: string;
+  paymentId: string;
+  tab: "tt" | "lc";
+  fileName: string;
+}) {
+  const [pending, startTransition] = useTransition();
 
+  function handleDelete() {
+    if (!confirm("이 첨부파일을 삭제할까요?")) return;
+    const formData = new FormData();
+    formData.set("attachmentId", attachmentId);
+    formData.set("paymentId", paymentId);
+    formData.set("tab", tab);
+    startTransition(() => {
+      void deletePaymentAttachmentAction(formData);
+    });
+  }
+
+  return (
+    <button
+      type="button"
+      disabled={pending}
+      className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-sm leading-none text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+      title="첨부파일 삭제"
+      aria-label={`${fileName} 삭제`}
+      onClick={handleDelete}
+    >
+      ×
+    </button>
+  );
+}
