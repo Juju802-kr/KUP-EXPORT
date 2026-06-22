@@ -1282,6 +1282,22 @@ function dateTimeText(value?: Date | string | null) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+function noticeScheduleRangeText(start?: Date | string | null, end?: Date | string | null) {
+  const startText = dateTimeText(start);
+  const endText = dateTimeText(end);
+  if (startText && endText) return `${startText} ~ ${endText}`;
+  return startText || endText;
+}
+
+function noticeScheduleBodyLines(start?: Date | string | null, end?: Date | string | null) {
+  const lines: string[] = [];
+  const startText = dateTimeText(start);
+  const endText = dateTimeText(end);
+  if (startText) lines.push(`시작일시: ${startText}`);
+  if (endText) lines.push(`종료일시: ${endText}`);
+  return lines;
+}
+
 function shipmentProductLine(product: {
   productName: string | null;
   normalBoxQty?: number | null;
@@ -1647,22 +1663,27 @@ export async function saveNoticeAction(formData: FormData) {
   const changePrefix = isCancel ? "\u203b\ucde8\uc18c\u203b" : isEditNotice ? "\u2605\uc218\uc815\u2605" : "";
   const teamText = noticeTargetTeamText(targetTeams);
   const bodyLines = [
-    "\uc81c\ubaa9: " + notice.title,
-    "\uacf5\uc9c0 \uc720\ud615: " + noticeTypeText(notice.type),
-    "\uc7a5\uc18c: " + (notice.place ?? ""),
-    "\uc2dc\uc791\uc77c\uc2dc: " + dateTimeText(notice.scheduleDate),
-    "\uc885\ub8cc\uc77c\uc2dc: " + dateTimeText(notice.scheduleEndDate),
-    "\ub300\uc0c1 \ud300: " + teamText,
+    "제목: " + notice.title,
+    "공지 유형: " + noticeTypeText(notice.type),
+    ...(notice.place ? ["장소: " + notice.place] : []),
+    ...noticeScheduleBodyLines(notice.scheduleDate, notice.scheduleEndDate),
+    "대상 팀: " + teamText,
     "",
-    isCancel ? "\ucde8\uc18c \uc0ac\uc720:" : "\uacf5\uc9c0 \ub0b4\uc6a9:",
+    isCancel ? "취소 사유:" : "공지 내용:",
     notice.content
   ];
+  const subjectParts = [
+    changePrefix + importantPrefix + "[" + noticeTypeText(notice.type) + "]",
+    notice.title,
+    notice.place || "",
+    noticeScheduleRangeText(notice.scheduleDate, notice.scheduleEndDate)
+  ].filter(Boolean);
   revalidatePath("/notices");
   revalidatePath("/calendar");
   emailQueueRedirect("/notices", () =>
     sendProgramEmail({
       to: recipients.map((recipient) => recipient.email),
-      subject: changePrefix + importantPrefix + "[" + noticeTypeText(notice.type) + "] " + notice.title + " " + (notice.place || "") + " " + dateTimeText(notice.scheduleDate) + " ~ " + dateTimeText(notice.scheduleEndDate),
+      subject: subjectParts.join(" "),
       body: bodyLines.join("\n"),
       createdById: user.id
     })
