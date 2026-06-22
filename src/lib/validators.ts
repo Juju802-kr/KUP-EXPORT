@@ -21,3 +21,7 @@ export function formDate(formData: FormData, key: string) {
   if (!value) return null;
   return new Date(value.includes("T") ? value : `${value}T00:00:00.000Z`);
 }
+
+export function formUploadFiles(formData: FormData, key: string) {
+  return formData.getAll(key).filter((entry): entry is File => entry instanceof File && entry.size > 0);
+}

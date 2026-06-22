@@ -14,8 +14,8 @@ import {
   paymentTtAttachmentBaseName
 } from "@/lib/payment-attachment-name";
 import { prisma } from "@/lib/prisma";
-import { saveAttachments } from "@/lib/upload";
-import { emailSchema, formDate, formNumber, formString } from "@/lib/validators";
+import { saveAttachments, deleteAttachment } from "@/lib/upload";
+import { emailSchema, formDate, formNumber, formString, formUploadFiles } from "@/lib/validators";
 
 function fail(path: string, message: string): never {
   redirect(withMessage(path, "error", message));
@@ -551,29 +551,20 @@ export async function confirmPaymentTTAction(formData: FormData) {
 export async function savePaymentTTConfirmSectionAction(formData: FormData) {
   const user = await requireUser();
   const id = formString(formData, "id");
+  const redirectPath = `/payments?tab=tt${id ? `&edit=${id}` : ""}`;
   if (!id) fail("/payments?tab=tt", "저장할 T/T 입금을 선택해주세요.");
 
-  const payment = await prisma.paymentTT.findUnique({ where: { id } });
-  if (!payment) fail("/payments?tab=tt", "T/T 입금을 찾을 수 없습니다.");
-
-  const allocations = readPaymentTTAllocations(formData, Number(payment.amount), id);
-  if (allocations !== null) {
-    await savePaymentTTAllocations(id, allocations);
-  }
+  const files = formUploadFiles(formData, "confirmFiles");
+  if (!files.length) fail(redirectPath, "첨부파일을 선택해주세요.");
 
   try {
-    await saveAttachments(
-      formData.getAll("confirmFiles").filter((f): f is File => f instanceof File),
-      "PAYMENT_TT",
-      paymentTtConfirmOwnerId(id),
-      user.id
-    );
+    await saveAttachments(files, "PAYMENT_TT", paymentTtConfirmOwnerId(id), user.id);
   } catch (error) {
-    fail(`/payments?tab=tt&edit=${id}`, error instanceof Error ? error.message : "첨부파일 저장에 실패했습니다.");
+    fail(redirectPath, error instanceof Error ? error.message : "첨부파일 저장에 실패했습니다.");
   }
 
   revalidatePath("/payments");
-  redirect(`/payments?tab=tt&edit=${id}`);
+  succeed(redirectPath, "첨부파일을 저장했습니다.");
 }
 
 function paymentTtConfirmOwnerId(paymentId: string) {
@@ -588,8 +579,8 @@ async function savePaymentTT(formData: FormData, intent: string) {
   const payment = id ? await prisma.paymentTT.update({ where: { id }, data: omitCreatedBy(data) }) : await prisma.paymentTT.create({ data });
   await Promise.all([
     savePaymentTTAllocations(payment.id, allocations),
-    saveAttachments(formData.getAll("files").filter((f): f is File => f instanceof File), "PAYMENT_TT", payment.id, user.id),
-    saveAttachments(formData.getAll("confirmFiles").filter((f): f is File => f instanceof File), "PAYMENT_TT", paymentTtConfirmOwnerId(payment.id), user.id)
+    saveAttachments(formUploadFiles(formData, "files"), "PAYMENT_TT", payment.id, user.id),
+    saveAttachments(formUploadFiles(formData, "confirmFiles"), "PAYMENT_TT", paymentTtConfirmOwnerId(payment.id), user.id)
   ]).catch((error) => {
     fail(`/payments?tab=tt${payment.id ? `&edit=${payment.id}` : ""}`, error instanceof Error ? error.message : "저장에 실패했습니다.");
   });
@@ -809,6 +800,35 @@ export async function deletePaymentAction(formData: FormData) {
   if (type === "lc") await prisma.paymentLC.delete({ where: { id } });
   revalidatePath("/payments");
   redirect(`/payments?tab=${type}`);
+}
+
+export async function deletePaymentAttachmentAction(formData: FormData) {
+  await requireUser();
+  const attachmentId = formString(formData, "attachmentId");
+  const paymentId = formString(formData, "paymentId") || formString(formData, "id");
+  const tab = formString(formData, "tab") || (formString(formData, "paymentTab") === "lc" ? "lc" : "tt");
+  const redirectPath = `/payments?tab=${tab}${paymentId ? `&edit=${paymentId}` : ""}`;
+
+  if (!attachmentId) fail(redirectPath, "삭제할 첨부파일을 선택해주세요.");
+  if (!paymentId) fail(`/payments?tab=${tab}`, "입금 건을 선택해주세요.");
+
+  const attachment = await prisma.attachment.findUnique({ where: { id: attachmentId } });
+  if (!attachment) fail(redirectPath, "첨부파일을 찾을 수 없습니다.");
+
+  const allowedOwnerIds = new Set([paymentId, paymentTtConfirmOwnerId(paymentId)]);
+  if (!allowedOwnerIds.has(attachment.ownerId)) fail(redirectPath, "삭제할 수 없는 첨부파일입니다.");
+  if (attachment.ownerType !== "PAYMENT_TT" && attachment.ownerType !== "PAYMENT_LC") {
+    fail(redirectPath, "삭제할 수 없는 첨부파일입니다.");
+  }
+
+  try {
+    await deleteAttachment(attachmentId);
+  } catch (error) {
+    fail(redirectPath, error instanceof Error ? error.message : "첨부파일 삭제에 실패했습니다.");
+  }
+
+  revalidatePath("/payments");
+  succeed(redirectPath, "첨부파일을 삭제했습니다.");
 }
 
 function readPaymentTTForm(formData: FormData, userId: string) {

@@ -19,6 +19,23 @@ function safeStoredName(fileName: string) {
   return `${Date.now()}-${crypto.randomUUID()}-${safeName}`;
 }
 
+export async function deleteAttachment(attachmentId: string) {
+  const attachment = await prisma.attachment.findUnique({ where: { id: attachmentId } });
+  if (!attachment) throw new Error("첨부파일을 찾을 수 없습니다.");
+
+  const storage = storageClient();
+  if (storage) {
+    const { error } = await storage.client.storage.from(storage.bucket).remove([attachment.storedName]);
+    if (error) throw new Error(`파일 삭제 실패: ${error.message}`);
+  } else {
+    const { unlink } = await import("fs/promises");
+    await unlink(path.join(uploadDir, attachment.storedName)).catch(() => undefined);
+  }
+
+  await prisma.attachment.delete({ where: { id: attachmentId } });
+  return attachment;
+}
+
 export async function saveAttachments(files: File[], ownerType: AttachmentOwnerType, ownerId: string, userId: string) {
   const uploadableFiles = files.filter((file) => file && file.size > 0);
   if (!uploadableFiles.length) return;

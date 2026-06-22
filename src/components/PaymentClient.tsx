@@ -8,7 +8,7 @@ import { CountryCombobox } from "@/components/CountryCombobox";
 import { AppSelect } from "@/components/AppSelect";
 import { DeleteButton } from "@/components/DeleteButton";
 import { SearchableCombobox } from "@/components/SearchableCombobox";
-import { confirmPaymentLCAction, confirmPaymentTTAction, createPaymentLCAction, createPaymentTTAction, deletePaymentAction, notifyPaymentLCAction, notifyPaymentTTAction, savePaymentTTConfirmSectionAction } from "@/server/actions";
+import { confirmPaymentLCAction, confirmPaymentTTAction, createPaymentLCAction, createPaymentTTAction, deletePaymentAction, deletePaymentAttachmentAction, notifyPaymentLCAction, notifyPaymentTTAction, savePaymentTTConfirmSectionAction } from "@/server/actions";
 
 type UserOption = { id: string; name: string; team: Team };
 type BuyerOption = {
@@ -211,8 +211,9 @@ function TTSection({
 
   return (
     <div className="space-y-5">
-      <form key={formKey} action={createPaymentTTAction} className="space-y-5">
+      <form key={formKey} action={createPaymentTTAction} encType="multipart/form-data" className="space-y-5">
         <input type="hidden" name="id" value={current.id} />
+        <input type="hidden" name="paymentTab" value="tt" />
         <section className="panel p-5">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-base font-semibold">T/T 입금 등록</h2>
@@ -241,7 +242,7 @@ function TTSection({
             </div>
             <Field label="첨부파일" className="col-span-4">
               <input name="files" type="file" multiple />
-              {editing ? <ExistingAttachments files={currentAttachments} /> : null}
+              {editing ? <ExistingAttachments files={currentAttachments} paymentId={current.id} tab="tt" /> : null}
             </Field>
           </div>
         </section>
@@ -260,7 +261,7 @@ function TTSection({
             />
             <Field label="첨부파일" className="mt-4">
               <input name="confirmFiles" type="file" multiple />
-              <ExistingAttachments files={currentConfirmAttachments} />
+              <ExistingAttachments files={currentConfirmAttachments} paymentId={current.id} tab="tt" />
             </Field>
             <div className="mt-4 flex justify-end gap-2">
               <button className="btn" formAction={savePaymentTTConfirmSectionAction}>저장</button>
@@ -355,8 +356,9 @@ function LCSection({
 
   return (
     <div className="space-y-5">
-      <form key={formKey} action={createPaymentLCAction} className="space-y-5">
+      <form key={formKey} action={createPaymentLCAction} encType="multipart/form-data" className="space-y-5">
         <input type="hidden" name="id" value={current.id} />
+        <input type="hidden" name="paymentTab" value="lc" />
         <section className="panel p-5">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-base font-semibold">L/C 통지 등록</h2>
@@ -403,7 +405,7 @@ function LCSection({
             </div>
             <Field label="첨부파일" className="col-span-4">
               <input name="files" type="file" multiple />
-              {editing ? <ExistingAttachments files={currentAttachments} /> : null}
+              {editing ? <ExistingAttachments files={currentAttachments} paymentId={current.id} tab="lc" /> : null}
             </Field>
           </div>
         </section>
@@ -658,23 +660,53 @@ function DeletePaymentForm({ id, type }: { id: string; type: "tt" | "lc" }) {
   );
 }
 
-function ExistingAttachments({ files }: { files: AttachmentRow[] }) {
+function ExistingAttachments({ files, paymentId, tab }: { files: AttachmentRow[]; paymentId: string; tab: "tt" | "lc" }) {
   return (
     <div className="mt-2">
       <p className="mb-1 text-xs font-medium text-slate-500">기존 첨부파일</p>
-      <AttachmentLinks files={files} showEmpty />
+      <AttachmentLinks files={files} showEmpty deletable paymentId={paymentId} tab={tab} />
     </div>
   );
 }
 
-function AttachmentLinks({ files, showEmpty = false }: { files: AttachmentRow[]; showEmpty?: boolean }) {
+function AttachmentLinks({
+  files,
+  showEmpty = false,
+  deletable = false,
+  paymentId,
+  tab
+}: {
+  files: AttachmentRow[];
+  showEmpty?: boolean;
+  deletable?: boolean;
+  paymentId?: string;
+  tab?: "tt" | "lc";
+}) {
   if (!files.length) return showEmpty ? <span className="text-xs text-slate-400">첨부파일 없음</span> : <span className="text-xs text-slate-400">-</span>;
   return (
     <div className="flex flex-col gap-1 overflow-hidden">
       {files.map((file) => (
-        <a key={file.id} href={file.path} className="truncate text-xs font-medium text-blue-700 hover:underline" download={file.originalName} title={file.originalName}>
-          {file.mimeType?.startsWith("image/") ? "이미지 " : "파일 "} {file.originalName}
-        </a>
+        <div key={file.id} className="flex min-w-0 items-center gap-1">
+          <a href={file.path} className="min-w-0 flex-1 truncate text-xs font-medium text-blue-700 hover:underline" download={file.originalName} title={file.originalName}>
+            {file.mimeType?.startsWith("image/") ? "이미지 " : "파일 "} {file.originalName}
+          </a>
+          {deletable && paymentId && tab ? (
+            <button
+              type="submit"
+              formAction={deletePaymentAttachmentAction}
+              name="attachmentId"
+              value={file.id}
+              className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-sm leading-none text-slate-400 hover:bg-red-50 hover:text-red-600"
+              title="첨부파일 삭제"
+              aria-label={`${file.originalName} 삭제`}
+              onClick={(event) => {
+                if (!confirm("이 첨부파일을 삭제할까요?")) event.preventDefault();
+              }}
+            >
+              ×
+            </button>
+          ) : null}
+        </div>
       ))}
     </div>
   );

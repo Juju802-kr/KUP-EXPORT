@@ -185,20 +185,22 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   ];
   const paymentIds = [...visibleTtPayments.map((payment) => payment.id), ...visibleLcPayments.map((payment) => payment.id)];
   const ttConfirmOwnerIds = visibleTtPayments.map((payment) => `${payment.id}:confirm`);
-  const attachments = paymentIds.length
+  const attachmentFilters = [];
+  if (paymentIds.length) {
+    attachmentFilters.push({
+      ownerId: { in: paymentIds },
+      ownerType: { in: [AttachmentOwnerType.PAYMENT_TT, AttachmentOwnerType.PAYMENT_LC] as AttachmentOwnerType[] }
+    });
+  }
+  if (ttConfirmOwnerIds.length) {
+    attachmentFilters.push({
+      ownerId: { in: ttConfirmOwnerIds },
+      ownerType: AttachmentOwnerType.PAYMENT_TT
+    });
+  }
+  const attachments = attachmentFilters.length
     ? await prisma.attachment.findMany({
-        where: {
-          OR: [
-            {
-              ownerId: { in: paymentIds },
-              ownerType: { in: [AttachmentOwnerType.PAYMENT_TT, AttachmentOwnerType.PAYMENT_LC] }
-            },
-            {
-              ownerId: { in: ttConfirmOwnerIds },
-              ownerType: AttachmentOwnerType.PAYMENT_TT
-            }
-          ]
-        },
+        where: { OR: attachmentFilters },
         orderBy: { createdAt: "desc" }
       })
     : [];
