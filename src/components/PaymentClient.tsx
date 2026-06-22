@@ -684,10 +684,10 @@ function AttachmentLinks({
 }) {
   if (!files.length) return showEmpty ? <span className="text-xs text-slate-400">첨부파일 없음</span> : <span className="text-xs text-slate-400">-</span>;
   return (
-    <div className="flex flex-col gap-1 overflow-hidden">
+    <div className="flex flex-col gap-1">
       {files.map((file) => (
-        <div key={file.id} className="flex min-w-0 items-center gap-1">
-          <a href={file.path} className="min-w-0 flex-1 truncate text-xs font-medium text-blue-700 hover:underline" download={file.originalName} title={file.originalName}>
+        <span key={file.id} className="inline-flex flex-wrap items-center gap-1.5">
+          <a href={file.path} className="break-all text-xs font-medium text-blue-700 hover:underline" download={file.originalName} title={file.originalName}>
             {file.mimeType?.startsWith("image/") ? "이미지 " : "파일 "} {file.originalName}
           </a>
           {deletable && paymentId && tab ? (
@@ -696,7 +696,7 @@ function AttachmentLinks({
               formAction={deletePaymentAttachmentAction}
               name="attachmentId"
               value={file.id}
-              className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-sm leading-none text-slate-400 hover:bg-red-50 hover:text-red-600"
+              className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-sm leading-none text-slate-400 hover:bg-red-50 hover:text-red-600"
               title="첨부파일 삭제"
               aria-label={`${file.originalName} 삭제`}
               onClick={(event) => {
@@ -706,7 +706,7 @@ function AttachmentLinks({
               ×
             </button>
           ) : null}
-        </div>
+        </span>
       ))}
     </div>
   );
