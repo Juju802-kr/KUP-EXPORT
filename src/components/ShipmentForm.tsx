@@ -2,10 +2,9 @@
 
 import { DropdownCategory, DropdownOption, ShipmentStatus } from "@prisma/client";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { SearchableCombobox } from "@/components/SearchableCombobox";
 import { createShipmentAction, updateShipmentAction } from "@/server/actions";
-import type { ShipmentOrderDraft } from "@/lib/shipment-order-draft";
 
 type Options = Record<DropdownCategory, DropdownOption[]>;
 type BuyerOption = {
@@ -48,13 +47,11 @@ type ShipmentFormValue = {
 export function ShipmentForm({
   shipment,
   options,
-  buyers,
-  draft
+  buyers
 }: {
   shipment?: ShipmentFormValue;
   options: Options;
   buyers: BuyerOption[];
-  draft?: ShipmentOrderDraft;
 }) {
   const action = shipment ? updateShipmentAction : createShipmentAction;
   const buyerMap = useMemo(() => new Map(buyers.map((buyer) => [buyer.buyerName, buyer])), [buyers]);
@@ -76,26 +73,9 @@ export function ShipmentForm({
     setSalesEmailRecipients(selected.salesEmailRecipients ?? "");
   }
 
-  useEffect(() => {
-    if (!draft) return;
-    if (draft.exportCountry) setExportCountry(draft.exportCountry);
-    if (draft.currency) setCurrency(draft.currency);
-    if (!draft.buyer) return;
-    setBuyer(draft.buyer);
-    const selected = buyerMap.get(draft.buyer);
-    if (selected) {
-      setSalesOwner(selected.salesOwner ?? "");
-      setExportCountry(selected.exportCountry ?? draft.exportCountry ?? "");
-      setCurrency(selected.defaultCurrency ?? draft.currency ?? "USD");
-      setExportOwner(selected.exportOwner ?? "");
-      setSalesEmailRecipients(selected.salesEmailRecipients ?? "");
-    }
-  }, [draft, buyerMap]);
-
   return (
     <form action={action} className="space-y-6">
       {shipment ? <input type="hidden" name="id" value={shipment.id} /> : null}
-      {draft?.products.length ? <input type="hidden" name="orderProductsJson" value={JSON.stringify(draft.products)} /> : null}
       <input type="hidden" name="status" value={ShipmentStatus.REQUEST_WAITING} />
       <input type="hidden" name="currency" value={currency} />
       <input type="hidden" name="exportEmailRecipients" value={exportOwner} />
@@ -128,27 +108,6 @@ export function ShipmentForm({
         </FormRow>
         <TextArea label="영업담당자 의견" name="salesRequest" value={shipment?.salesRequest} />
       </Box>
-
-      {draft?.products.length ? (
-        <Box title="오더에서 가져올 제품" columns={1}>
-          <p className="text-sm text-slate-600">
-            등록 후 선적의뢰 상세 페이지에 아래 {draft.products.length}개 제품이 자동으로 추가됩니다.
-          </p>
-          <ul className="divide-y divide-slate-100 rounded-md border border-slate-200 bg-slate-50 text-sm">
-            {draft.products.map((product, index) => (
-              <li key={`${product.piNo}-${product.productionRequestNo}-${index}`} className="grid gap-1 px-3 py-2 md:grid-cols-4">
-                <span className="font-medium text-slate-900">{product.productName}</span>
-                <span className="text-slate-600">PI {product.piNo || "-"}</span>
-                <span className="text-slate-600">생산의뢰 {product.productionRequestNo || "-"}</span>
-                <span className="text-slate-600 tabular-nums">
-                  {product.bxQtyPaid.toLocaleString("ko-KR")} Box
-                  {product.bxQtyFoc ? ` + FOC ${product.bxQtyFoc.toLocaleString("ko-KR")}` : ""}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </Box>
-      ) : null}
 
       <div className="flex justify-end">
         <button className="btn-primary px-6">{shipment ? "수정 저장" : "선적의뢰 등록"}</button>

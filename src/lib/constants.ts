@@ -46,27 +46,6 @@ export const fmtDate = (value?: Date | string | null) => {
   return Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 10);
 };
 
-export const fmtYearMonth = (value?: Date | string | null) => {
-  if (!value) return "";
-  const trimmed = String(value).trim();
-  if (/^\d{2}-\d{2}$/.test(trimmed)) return trimmed;
-  const date = typeof value === "string" ? new Date(trimmed.includes("T") ? trimmed : `${trimmed}T00:00:00.000Z`) : value;
-  if (Number.isNaN(date.getTime())) return "";
-  const yy = String(date.getUTCFullYear()).slice(-2);
-  const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
-  return `${yy}-${mm}`;
-};
-
-export const yearMonthToFormDate = (value?: Date | string | null) => {
-  const formatted = fmtYearMonth(value);
-  if (!formatted) {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-  }
-  const [yy, mm] = formatted.split("-");
-  return `20${yy}-${mm}-01`;
-};
-
 export const fmtDateTimeLocal = (value?: Date | string | null) => {
   if (!value) return "";
   const date = typeof value === "string" ? new Date(value) : value;

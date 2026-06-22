@@ -8,7 +8,6 @@ import { GlobalMessageAlert } from "@/components/GlobalMessageAlert";
 const nav = [
   ["선적의뢰", "/shipments"],
   ["입금내역", "/payments"],
-  ["오더관리", "/orders"],
   ["공지", "/notices"],
   ["달력", "/calendar"]
 ];
