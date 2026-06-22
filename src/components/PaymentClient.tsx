@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { PaymentLcKind, Team, type AttachmentOwnerType } from "@prisma/client";
+import { PaymentLcKind, Team } from "@prisma/client";
 import { useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
@@ -73,11 +73,18 @@ type PaymentLCAllocationRow = {
 type AttachmentRow = {
   id: string;
   ownerId: string;
-  ownerType: AttachmentOwnerType;
   originalName: string;
   path: string;
   mimeType: string | null;
 };
+
+function paymentTtConfirmOwnerId(paymentId: string) {
+  return `${paymentId}:confirm`;
+}
+
+function isPaymentTtConfirmAttachment(ownerId: string, paymentId: string) {
+  return ownerId === paymentTtConfirmOwnerId(paymentId);
+}
 
 const emptyTT: PaymentTTRow = {
   id: "",
@@ -180,8 +187,8 @@ function TTSection({
   const [buyerName, setBuyerName] = useState(() => payments.find((payment) => payment.id === initialEditId)?.buyer ?? "");
   const current = editing ?? emptyTT;
   const selectedBuyer = useMemo(() => buyers.find((buyer) => buyer.buyerName === buyerName), [buyers, buyerName]);
-  const currentAttachments = attachments.filter((file) => file.ownerId === current.id && file.ownerType === "PAYMENT_TT");
-  const currentConfirmAttachments = attachments.filter((file) => file.ownerId === current.id && file.ownerType === "PAYMENT_TT_CONFIRM");
+  const currentAttachments = attachments.filter((file) => file.ownerId === current.id);
+  const currentConfirmAttachments = attachments.filter((file) => isPaymentTtConfirmAttachment(file.ownerId, current.id));
 
   function startEdit(payment: PaymentTTRow) {
     setEditing(payment);
@@ -287,7 +294,7 @@ function TTSection({
               </button>
               <RowButton onClick={() => startEdit(payment)}>{payment.productionRequestNo || "-"}</RowButton>
               <RowButton onClick={() => startEdit(payment)}>{payment.invNo || "-"}</RowButton>
-              <AttachmentLinks files={attachments.filter((file) => file.ownerId === payment.id && (file.ownerType === "PAYMENT_TT" || file.ownerType === "PAYMENT_TT_CONFIRM"))} />
+              <AttachmentLinks files={attachments.filter((file) => file.ownerId === payment.id || isPaymentTtConfirmAttachment(file.ownerId, payment.id))} />
               <DeletePaymentForm id={payment.id} type="tt" />
             </div>
           ))}

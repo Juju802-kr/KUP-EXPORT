@@ -548,6 +548,10 @@ export async function confirmPaymentTTAction(formData: FormData) {
   return savePaymentTT(formData, "confirm");
 }
 
+function paymentTtConfirmOwnerId(paymentId: string) {
+  return `${paymentId}:confirm`;
+}
+
 async function savePaymentTT(formData: FormData, intent: string) {
   const user = await requireUser();
   const id = formString(formData, "id");
@@ -557,7 +561,7 @@ async function savePaymentTT(formData: FormData, intent: string) {
   await Promise.all([
     savePaymentTTAllocations(payment.id, allocations),
     saveAttachments(formData.getAll("files").filter((f): f is File => f instanceof File), "PAYMENT_TT", payment.id, user.id),
-    saveAttachments(formData.getAll("confirmFiles").filter((f): f is File => f instanceof File), "PAYMENT_TT_CONFIRM", payment.id, user.id)
+    saveAttachments(formData.getAll("confirmFiles").filter((f): f is File => f instanceof File), "PAYMENT_TT", paymentTtConfirmOwnerId(payment.id), user.id)
   ]);
   await renamePaymentTtAttachments(payment.id);
   if (intent === "notify") emailQueueRedirect("/payments?tab=tt", () => sendPaymentTtNotifyMail(payment.id, user.id));

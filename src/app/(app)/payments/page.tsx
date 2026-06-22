@@ -184,11 +184,20 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
     ...lcPayments.slice(0, listLimit).filter((payment) => payment.id !== selectedLcPayment?.id)
   ];
   const paymentIds = [...visibleTtPayments.map((payment) => payment.id), ...visibleLcPayments.map((payment) => payment.id)];
+  const ttConfirmOwnerIds = visibleTtPayments.map((payment) => `${payment.id}:confirm`);
   const attachments = paymentIds.length
     ? await prisma.attachment.findMany({
         where: {
-          ownerId: { in: paymentIds },
-          ownerType: { in: [AttachmentOwnerType.PAYMENT_TT, AttachmentOwnerType.PAYMENT_TT_CONFIRM, AttachmentOwnerType.PAYMENT_LC] }
+          OR: [
+            {
+              ownerId: { in: paymentIds },
+              ownerType: { in: [AttachmentOwnerType.PAYMENT_TT, AttachmentOwnerType.PAYMENT_LC] }
+            },
+            {
+              ownerId: { in: ttConfirmOwnerIds },
+              ownerType: AttachmentOwnerType.PAYMENT_TT
+            }
+          ]
         },
         orderBy: { createdAt: "desc" }
       })
@@ -277,7 +286,6 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
         attachments={attachments.map((file) => ({
           id: file.id,
           ownerId: file.ownerId,
-          ownerType: file.ownerType,
           originalName: file.originalName,
           path: file.path,
           mimeType: file.mimeType
