@@ -548,6 +548,34 @@ export async function confirmPaymentTTAction(formData: FormData) {
   return savePaymentTT(formData, "confirm");
 }
 
+export async function savePaymentTTConfirmSectionAction(formData: FormData) {
+  const user = await requireUser();
+  const id = formString(formData, "id");
+  if (!id) fail("/payments?tab=tt", "저장할 T/T 입금을 선택해주세요.");
+
+  const payment = await prisma.paymentTT.findUnique({ where: { id } });
+  if (!payment) fail("/payments?tab=tt", "T/T 입금을 찾을 수 없습니다.");
+
+  const allocations = readPaymentTTAllocations(formData, Number(payment.amount), id);
+  if (allocations !== null) {
+    await savePaymentTTAllocations(id, allocations);
+  }
+
+  try {
+    await saveAttachments(
+      formData.getAll("confirmFiles").filter((f): f is File => f instanceof File),
+      "PAYMENT_TT",
+      paymentTtConfirmOwnerId(id),
+      user.id
+    );
+  } catch (error) {
+    fail(`/payments?tab=tt&edit=${id}`, error instanceof Error ? error.message : "첨부파일 저장에 실패했습니다.");
+  }
+
+  revalidatePath("/payments");
+  redirect(`/payments?tab=tt&edit=${id}`);
+}
+
 function paymentTtConfirmOwnerId(paymentId: string) {
   return `${paymentId}:confirm`;
 }
@@ -562,7 +590,9 @@ async function savePaymentTT(formData: FormData, intent: string) {
     savePaymentTTAllocations(payment.id, allocations),
     saveAttachments(formData.getAll("files").filter((f): f is File => f instanceof File), "PAYMENT_TT", payment.id, user.id),
     saveAttachments(formData.getAll("confirmFiles").filter((f): f is File => f instanceof File), "PAYMENT_TT", paymentTtConfirmOwnerId(payment.id), user.id)
-  ]);
+  ]).catch((error) => {
+    fail(`/payments?tab=tt${payment.id ? `&edit=${payment.id}` : ""}`, error instanceof Error ? error.message : "저장에 실패했습니다.");
+  });
   await renamePaymentTtAttachments(payment.id);
   if (intent === "notify") emailQueueRedirect("/payments?tab=tt", () => sendPaymentTtNotifyMail(payment.id, user.id));
   if (intent === "confirm") emailQueueRedirect("/payments?tab=tt", () => sendPaymentTtConfirmMail(payment.id, user.id));
@@ -652,7 +682,7 @@ function readPaymentTTAllocations(formData: FormData, paymentAmount: number, pay
   if (rows.length && !sameMoney(sumMoney(rows), paymentAmount)) {
     fail(`/payments?tab=tt${paymentId ? `&edit=${paymentId}` : ""}`, "입력한 금액 합이 입금된 금액과 맞지 않습니다.");
   }
-  return rows;
+  return rows.length ? rows : null;
 }
 
 function readPaymentLCAllocations(formData: FormData, paymentAmount: number, paymentId?: string): LCAllocationInput[] | null {
@@ -670,7 +700,7 @@ function readPaymentLCAllocations(formData: FormData, paymentAmount: number, pay
 }
 
 async function savePaymentTTAllocations(paymentId: string, allocations: TTAllocationInput[] | null) {
-  if (!allocations) return;
+  if (!allocations?.length) return;
   await prisma.$transaction([
     prisma.paymentTTAllocation.deleteMany({ where: { paymentId } }),
     ...allocations.map((row, index) =>

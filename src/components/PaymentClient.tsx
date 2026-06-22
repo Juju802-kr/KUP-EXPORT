@@ -8,7 +8,7 @@ import { CountryCombobox } from "@/components/CountryCombobox";
 import { AppSelect } from "@/components/AppSelect";
 import { DeleteButton } from "@/components/DeleteButton";
 import { SearchableCombobox } from "@/components/SearchableCombobox";
-import { confirmPaymentLCAction, confirmPaymentTTAction, createPaymentLCAction, createPaymentTTAction, deletePaymentAction, notifyPaymentLCAction, notifyPaymentTTAction } from "@/server/actions";
+import { confirmPaymentLCAction, confirmPaymentTTAction, createPaymentLCAction, createPaymentTTAction, deletePaymentAction, notifyPaymentLCAction, notifyPaymentTTAction, savePaymentTTConfirmSectionAction } from "@/server/actions";
 
 type UserOption = { id: string; name: string; team: Team };
 type BuyerOption = {
@@ -263,7 +263,7 @@ function TTSection({
               <ExistingAttachments files={currentConfirmAttachments} />
             </Field>
             <div className="mt-4 flex justify-end gap-2">
-              <button className="btn" formAction={createPaymentTTAction}>저장</button>
+              <button className="btn" formAction={savePaymentTTConfirmSectionAction}>저장</button>
               <button className="btn-primary" formAction={confirmPaymentTTAction}>등록</button>
             </div>
           </section>
