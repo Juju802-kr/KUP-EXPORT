@@ -188,7 +188,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
     ? await prisma.attachment.findMany({
         where: {
           ownerId: { in: paymentIds },
-          ownerType: { in: [AttachmentOwnerType.PAYMENT_TT, AttachmentOwnerType.PAYMENT_LC] }
+          ownerType: { in: [AttachmentOwnerType.PAYMENT_TT, AttachmentOwnerType.PAYMENT_TT_CONFIRM, AttachmentOwnerType.PAYMENT_LC] }
         },
         orderBy: { createdAt: "desc" }
       })
@@ -277,6 +277,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
         attachments={attachments.map((file) => ({
           id: file.id,
           ownerId: file.ownerId,
+          ownerType: file.ownerType,
           originalName: file.originalName,
           path: file.path,
           mimeType: file.mimeType

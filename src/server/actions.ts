@@ -556,7 +556,8 @@ async function savePaymentTT(formData: FormData, intent: string) {
   const payment = id ? await prisma.paymentTT.update({ where: { id }, data: omitCreatedBy(data) }) : await prisma.paymentTT.create({ data });
   await Promise.all([
     savePaymentTTAllocations(payment.id, allocations),
-    saveAttachments(formData.getAll("files").filter((f): f is File => f instanceof File), "PAYMENT_TT", payment.id, user.id)
+    saveAttachments(formData.getAll("files").filter((f): f is File => f instanceof File), "PAYMENT_TT", payment.id, user.id),
+    saveAttachments(formData.getAll("confirmFiles").filter((f): f is File => f instanceof File), "PAYMENT_TT_CONFIRM", payment.id, user.id)
   ]);
   await renamePaymentTtAttachments(payment.id);
   if (intent === "notify") emailQueueRedirect("/payments?tab=tt", () => sendPaymentTtNotifyMail(payment.id, user.id));

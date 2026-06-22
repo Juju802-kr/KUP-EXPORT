@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { PaymentLcKind, Team } from "@prisma/client";
+import { PaymentLcKind, Team, type AttachmentOwnerType } from "@prisma/client";
 import { useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
@@ -73,6 +73,7 @@ type PaymentLCAllocationRow = {
 type AttachmentRow = {
   id: string;
   ownerId: string;
+  ownerType: AttachmentOwnerType;
   originalName: string;
   path: string;
   mimeType: string | null;
@@ -179,7 +180,8 @@ function TTSection({
   const [buyerName, setBuyerName] = useState(() => payments.find((payment) => payment.id === initialEditId)?.buyer ?? "");
   const current = editing ?? emptyTT;
   const selectedBuyer = useMemo(() => buyers.find((buyer) => buyer.buyerName === buyerName), [buyers, buyerName]);
-  const currentAttachments = attachments.filter((file) => file.ownerId === current.id);
+  const currentAttachments = attachments.filter((file) => file.ownerId === current.id && file.ownerType === "PAYMENT_TT");
+  const currentConfirmAttachments = attachments.filter((file) => file.ownerId === current.id && file.ownerType === "PAYMENT_TT_CONFIRM");
 
   function startEdit(payment: PaymentTTRow) {
     setEditing(payment);
@@ -249,6 +251,10 @@ function TTSection({
                 note: current.note
               }]}
             />
+            <Field label="첨부파일" className="mt-4">
+              <input name="confirmFiles" type="file" multiple />
+              <ExistingAttachments files={currentConfirmAttachments} />
+            </Field>
             <div className="mt-4 flex justify-end gap-2">
               <button className="btn" formAction={createPaymentTTAction}>저장</button>
               <button className="btn-primary" formAction={confirmPaymentTTAction}>등록</button>
@@ -281,7 +287,7 @@ function TTSection({
               </button>
               <RowButton onClick={() => startEdit(payment)}>{payment.productionRequestNo || "-"}</RowButton>
               <RowButton onClick={() => startEdit(payment)}>{payment.invNo || "-"}</RowButton>
-              <AttachmentLinks files={attachments.filter((file) => file.ownerId === payment.id)} />
+              <AttachmentLinks files={attachments.filter((file) => file.ownerId === payment.id && (file.ownerType === "PAYMENT_TT" || file.ownerType === "PAYMENT_TT_CONFIRM"))} />
               <DeletePaymentForm id={payment.id} type="tt" />
             </div>
           ))}
