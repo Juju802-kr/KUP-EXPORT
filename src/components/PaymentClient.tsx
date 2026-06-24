@@ -281,8 +281,8 @@ function TTSection({
         <h2 className="text-base font-semibold">T/T 입금 관리 목록</h2>
         <PaymentSearchForm tab="tt" defaultValue={searchQuery} pendingOnly={pendingOnly} incompleteOnly={incompleteOnly} />
         <div className="mt-3 divide-y divide-slate-100">
-          <div className="grid grid-cols-[40px_110px_120px_140px_130px_1fr_1fr_180px_auto] items-center gap-3 py-2 text-xs font-medium text-slate-500">
-            <span />
+          <div className="grid grid-cols-[48px_110px_120px_140px_130px_1fr_1fr_180px_auto] items-center gap-3 py-2 text-xs font-medium text-slate-500">
+            <span>완료</span>
             <span>영업담당자</span>
             <span>국가</span>
             <span>바이어</span>
@@ -293,7 +293,7 @@ function TTSection({
             <span />
           </div>
           {payments.map((payment) => (
-            <div key={payment.id} className="grid grid-cols-[40px_110px_120px_140px_130px_1fr_1fr_180px_auto] items-center gap-3 py-3 text-sm">
+            <div key={payment.id} className="grid grid-cols-[48px_110px_120px_140px_130px_1fr_1fr_180px_auto] items-center gap-3 py-3 text-sm">
               <PaymentTTCompletedCheckbox paymentId={payment.id} completed={payment.completed} />
               <RowButton onClick={() => startEdit(payment)}>{payment.salesOwner || "-"}</RowButton>
               <RowButton onClick={() => startEdit(payment)}>{payment.exportCountry || "-"}</RowButton>

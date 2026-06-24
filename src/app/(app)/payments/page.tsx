@@ -1,5 +1,6 @@
 import { AttachmentOwnerType, DropdownCategory, Team } from "@prisma/client";
 import { FloatingExportButton } from "@/components/FloatingExportButton";
+import { LoadMoreLink } from "@/components/LoadMoreLink";
 import { PaymentClient } from "@/components/PaymentClient";
 import { fmtDate } from "@/lib/constants";
 import { prisma } from "@/lib/prisma";
@@ -87,7 +88,9 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   const editId = params.edit?.trim();
   const pendingOnly = params.pending === "1";
   const incompleteOnly = params.incomplete === "1";
+  const showAllResults = pendingOnly || incompleteOnly;
   const listLimit = parseListLimit(params.limit);
+  const queryTake = showAllResults ? undefined : listLimit + 1;
   const qAmount = q ? Number(q.replaceAll(",", "")) : NaN;
   const amountFilter = Number.isFinite(qAmount) ? [{ amount: qAmount }] : [];
   const ttWhere = {
@@ -139,7 +142,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
       ? prisma.paymentTT.findMany({
           where: ttWhere,
           orderBy: { createdAt: "desc" },
-          take: listLimit + 1,
+          take: queryTake,
           select: ttPaymentSelect
         })
       : Promise.resolve([]),
@@ -147,7 +150,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
       ? prisma.paymentLC.findMany({
           where: lcWhere,
           orderBy: { createdAt: "desc" },
-          take: listLimit + 1,
+          take: queryTake,
           select: lcPaymentSelect
         })
       : Promise.resolve([]),
@@ -170,7 +173,8 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
         })
       : Promise.resolve([])
   ]);
-  const hasMore = tab === "tt" ? ttPayments.length > listLimit : lcPayments.length > listLimit;
+  const hasMore = !showAllResults && (tab === "tt" ? ttPayments.length > listLimit : lcPayments.length > listLimit);
+  const visibleListLimit = showAllResults ? Number.MAX_SAFE_INTEGER : listLimit;
   const selectedTtPayment =
     tab === "tt" && editId && !ttPayments.some((payment) => payment.id === editId)
       ? await prisma.paymentTT.findUnique({ where: { id: editId }, select: ttPaymentSelect })
@@ -181,11 +185,11 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
       : null;
   const visibleTtPayments = [
     ...(selectedTtPayment ? [selectedTtPayment] : []),
-    ...ttPayments.slice(0, listLimit).filter((payment) => payment.id !== selectedTtPayment?.id)
+    ...ttPayments.slice(0, visibleListLimit).filter((payment) => payment.id !== selectedTtPayment?.id)
   ];
   const visibleLcPayments = [
     ...(selectedLcPayment ? [selectedLcPayment] : []),
-    ...lcPayments.slice(0, listLimit).filter((payment) => payment.id !== selectedLcPayment?.id)
+    ...lcPayments.slice(0, visibleListLimit).filter((payment) => payment.id !== selectedLcPayment?.id)
   ];
   const paymentIds = [...visibleTtPayments.map((payment) => payment.id), ...visibleLcPayments.map((payment) => payment.id)];
   const ttConfirmOwnerIds = visibleTtPayments.map((payment) => `${payment.id}:confirm`);
@@ -301,9 +305,9 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
       />
       {hasMore ? (
         <div className="flex justify-center">
-          <a className="btn h-11 px-6" href={paymentMoreHref(params, listLimit + listLimitStep)}>
+          <LoadMoreLink className="btn h-11 px-6" href={paymentMoreHref(params, listLimit + listLimitStep)}>
             더보기
-          </a>
+          </LoadMoreLink>
         </div>
       ) : null}
       <FloatingExportButton
