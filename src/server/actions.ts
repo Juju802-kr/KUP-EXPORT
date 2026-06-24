@@ -548,23 +548,57 @@ export async function confirmPaymentTTAction(formData: FormData) {
   return savePaymentTT(formData, "confirm");
 }
 
+export async function uploadPaymentTTConfirmAttachmentsAction(formData: FormData) {
+  const user = await requireUser();
+  const id = formString(formData, "id");
+  if (!id) throw new Error("저장할 T/T 입금을 선택해주세요.");
+
+  const files = formUploadFiles(formData, "confirmFiles");
+  if (!files.length) throw new Error("첨부파일을 선택해주세요.");
+
+  try {
+    await saveAttachments(files, "PAYMENT_TT", paymentTtConfirmOwnerId(id), user.id);
+  } catch (error) {
+    throw new Error(error instanceof Error ? error.message : "첨부파일 저장에 실패했습니다.");
+  }
+
+  revalidatePath("/payments");
+}
+
 export async function savePaymentTTConfirmSectionAction(formData: FormData) {
   const user = await requireUser();
   const id = formString(formData, "id");
   const redirectPath = `/payments?tab=tt${id ? `&edit=${id}` : ""}`;
   if (!id) fail("/payments?tab=tt", "저장할 T/T 입금을 선택해주세요.");
 
-  const files = formUploadFiles(formData, "confirmFiles");
-  if (!files.length) fail(redirectPath, "첨부파일을 선택해주세요.");
+  const payment = await prisma.paymentTT.findUnique({ where: { id } });
+  if (!payment) fail("/payments?tab=tt", "T/T 입금을 찾을 수 없습니다.");
 
-  try {
-    await saveAttachments(files, "PAYMENT_TT", paymentTtConfirmOwnerId(id), user.id);
-  } catch (error) {
-    fail(redirectPath, error instanceof Error ? error.message : "첨부파일 저장에 실패했습니다.");
+  const allocations = readPaymentTTAllocations(formData, Number(payment.amount), id);
+  if (allocations !== null) {
+    await savePaymentTTAllocations(id, allocations);
   }
 
   revalidatePath("/payments");
-  succeed(redirectPath, "첨부파일을 저장했습니다.");
+  succeed(redirectPath, "저장했습니다.");
+}
+
+export async function confirmPaymentTTConfirmSectionAction(formData: FormData) {
+  const user = await requireUser();
+  const id = formString(formData, "id");
+  const redirectPath = `/payments?tab=tt${id ? `&edit=${id}` : ""}`;
+  if (!id) fail("/payments?tab=tt", "등록할 T/T 입금을 선택해주세요.");
+
+  const payment = await prisma.paymentTT.findUnique({ where: { id } });
+  if (!payment) fail("/payments?tab=tt", "T/T 입금을 찾을 수 없습니다.");
+
+  const allocations = readPaymentTTAllocations(formData, Number(payment.amount), id);
+  if (allocations !== null) {
+    await savePaymentTTAllocations(id, allocations);
+  }
+
+  revalidatePath("/payments");
+  emailQueueRedirect(redirectPath, () => sendPaymentTtConfirmMail(id, user.id));
 }
 
 function paymentTtConfirmOwnerId(paymentId: string) {
@@ -579,8 +613,7 @@ async function savePaymentTT(formData: FormData, intent: string) {
   const payment = id ? await prisma.paymentTT.update({ where: { id }, data: omitCreatedBy(data) }) : await prisma.paymentTT.create({ data });
   await Promise.all([
     savePaymentTTAllocations(payment.id, allocations),
-    saveAttachments(formUploadFiles(formData, "files"), "PAYMENT_TT", payment.id, user.id),
-    saveAttachments(formUploadFiles(formData, "confirmFiles"), "PAYMENT_TT", paymentTtConfirmOwnerId(payment.id), user.id)
+    saveAttachments(formUploadFiles(formData, "files"), "PAYMENT_TT", payment.id, user.id)
   ]).catch((error) => {
     fail(`/payments?tab=tt${payment.id ? `&edit=${payment.id}` : ""}`, error instanceof Error ? error.message : "저장에 실패했습니다.");
   });

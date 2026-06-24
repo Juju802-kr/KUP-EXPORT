@@ -2,13 +2,14 @@
 
 import { PaymentLcKind, Team } from "@prisma/client";
 import { useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { CountryCombobox } from "@/components/CountryCombobox";
 import { AppSelect } from "@/components/AppSelect";
 import { DeleteButton } from "@/components/DeleteButton";
 import { SearchableCombobox } from "@/components/SearchableCombobox";
-import { confirmPaymentLCAction, confirmPaymentTTAction, createPaymentLCAction, createPaymentTTAction, deletePaymentAction, deletePaymentAttachmentAction, notifyPaymentLCAction, notifyPaymentTTAction, savePaymentTTConfirmSectionAction, togglePaymentTTCompletedAction } from "@/server/actions";
+import { confirmPaymentLCAction, confirmPaymentTTConfirmSectionAction, createPaymentLCAction, createPaymentTTAction, deletePaymentAction, deletePaymentAttachmentAction, notifyPaymentLCAction, notifyPaymentTTAction, savePaymentTTConfirmSectionAction, togglePaymentTTCompletedAction, uploadPaymentTTConfirmAttachmentsAction } from "@/server/actions";
 
 type UserOption = { id: string; name: string; team: Team };
 type BuyerOption = {
@@ -266,12 +267,12 @@ function TTSection({
               }]}
             />
             <Field label="첨부파일" className="mt-4">
-              <input name="confirmFiles" type="file" multiple />
+              <PaymentTTConfirmFileUpload paymentId={current.id} />
               <ExistingAttachments files={currentConfirmAttachments} paymentId={current.id} tab="tt" />
             </Field>
             <div className="mt-4 flex justify-end gap-2">
               <button className="btn" formAction={savePaymentTTConfirmSectionAction}>저장</button>
-              <button className="btn-primary" formAction={confirmPaymentTTAction}>등록</button>
+              <button className="btn-primary" formAction={confirmPaymentTTConfirmSectionAction}>등록</button>
             </div>
           </section>
         ) : null}
@@ -733,6 +734,39 @@ function AttachmentLinks({
           ) : null}
         </span>
       ))}
+    </div>
+  );
+}
+
+function PaymentTTConfirmFileUpload({ paymentId }: { paymentId: string }) {
+  const router = useRouter();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [pending, startTransition] = useTransition();
+
+  function handleChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const selected = event.target.files;
+    if (!selected?.length) return;
+
+    const formData = new FormData();
+    formData.set("id", paymentId);
+    for (const file of selected) formData.append("confirmFiles", file);
+
+    startTransition(async () => {
+      try {
+        await uploadPaymentTTConfirmAttachmentsAction(formData);
+        router.refresh();
+      } catch (error) {
+        alert(error instanceof Error ? error.message : "첨부파일 저장에 실패했습니다.");
+      } finally {
+        if (inputRef.current) inputRef.current.value = "";
+      }
+    });
+  }
+
+  return (
+    <div className="space-y-1">
+      <input ref={inputRef} type="file" multiple disabled={pending} onChange={handleChange} />
+      {pending ? <p className="text-xs text-slate-500">첨부파일 저장 중...</p> : null}
     </div>
   );
 }
