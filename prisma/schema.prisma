@@ -275,6 +275,7 @@ model PaymentTT {
   salesEmailRecipients  String?
   exportEmailRecipients String?
   xporterUrl            String?
+  completed             Boolean  @default(false)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
   createdById           String
@@ -291,6 +292,7 @@ model PaymentTT {
   @@index([invNo])
   @@index([refNo])
   @@index([createdAt])
+  @@index([completed])
 }
 
 model PaymentTTAllocation {

@@ -3,12 +3,12 @@
 import { PaymentLcKind, Team } from "@prisma/client";
 import { useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { CountryCombobox } from "@/components/CountryCombobox";
 import { AppSelect } from "@/components/AppSelect";
 import { DeleteButton } from "@/components/DeleteButton";
 import { SearchableCombobox } from "@/components/SearchableCombobox";
-import { confirmPaymentLCAction, confirmPaymentTTAction, createPaymentLCAction, createPaymentTTAction, deletePaymentAction, deletePaymentAttachmentAction, notifyPaymentLCAction, notifyPaymentTTAction, savePaymentTTConfirmSectionAction } from "@/server/actions";
+import { confirmPaymentLCAction, confirmPaymentTTAction, createPaymentLCAction, createPaymentTTAction, deletePaymentAction, deletePaymentAttachmentAction, notifyPaymentLCAction, notifyPaymentTTAction, savePaymentTTConfirmSectionAction, togglePaymentTTCompletedAction } from "@/server/actions";
 
 type UserOption = { id: string; name: string; team: Team };
 type BuyerOption = {
@@ -36,6 +36,7 @@ type PaymentTTRow = {
   invNo: string | null;
   description: string | null;
   note: string | null;
+  completed: boolean;
   allocations: PaymentTTAllocationRow[];
 };
 type PaymentTTAllocationRow = {
@@ -102,6 +103,7 @@ const emptyTT: PaymentTTRow = {
   invNo: "",
   description: "",
   note: "",
+  completed: false,
   allocations: []
 };
 
@@ -136,7 +138,8 @@ export function PaymentClient({
   mode,
   attachments,
   searchQuery,
-  pendingOnly
+  pendingOnly,
+  incompleteOnly
 }: {
   ttPayments: PaymentTTRow[];
   lcPayments: PaymentLCRow[];
@@ -148,6 +151,7 @@ export function PaymentClient({
   attachments: AttachmentRow[];
   searchQuery: string;
   pendingOnly: boolean;
+  incompleteOnly: boolean;
 }) {
   const searchParams = useSearchParams();
   const editId = searchParams.get("edit");
@@ -155,7 +159,7 @@ export function PaymentClient({
   const exportOwners = users.filter((user) => user.team === Team.OVERSEAS_SALES_SUPPORT);
 
   return mode === "tt" ? (
-    <TTSection payments={ttPayments} buyers={buyers} countries={countries} salesOwners={salesOwners} exportOwners={exportOwners} attachments={attachments} initialEditId={editId} searchQuery={searchQuery} pendingOnly={pendingOnly} />
+    <TTSection payments={ttPayments} buyers={buyers} countries={countries} salesOwners={salesOwners} exportOwners={exportOwners} attachments={attachments} initialEditId={editId} searchQuery={searchQuery} pendingOnly={pendingOnly} incompleteOnly={incompleteOnly} />
   ) : (
     <LCSection payments={lcPayments} buyers={buyers} countries={countries} banks={banks} salesOwners={salesOwners} exportOwners={exportOwners} attachments={attachments} initialEditId={editId} searchQuery={searchQuery} pendingOnly={pendingOnly} />
   );
@@ -170,7 +174,8 @@ function TTSection({
   attachments,
   initialEditId,
   searchQuery,
-  pendingOnly
+  pendingOnly,
+  incompleteOnly
 }: {
   payments: PaymentTTRow[];
   buyers: BuyerOption[];
@@ -181,6 +186,7 @@ function TTSection({
   initialEditId: string | null;
   searchQuery: string;
   pendingOnly: boolean;
+  incompleteOnly: boolean;
 }) {
   const [editing, setEditing] = useState<PaymentTTRow | null>(() => payments.find((payment) => payment.id === initialEditId) ?? null);
   const [formKey, setFormKey] = useState(0);
@@ -273,9 +279,10 @@ function TTSection({
 
       <section className="panel p-5">
         <h2 className="text-base font-semibold">T/T 입금 관리 목록</h2>
-        <PaymentSearchForm tab="tt" defaultValue={searchQuery} pendingOnly={pendingOnly} />
+        <PaymentSearchForm tab="tt" defaultValue={searchQuery} pendingOnly={pendingOnly} incompleteOnly={incompleteOnly} />
         <div className="mt-3 divide-y divide-slate-100">
-          <div className="grid grid-cols-[110px_120px_140px_130px_1fr_1fr_180px_auto] items-center gap-3 py-2 text-xs font-medium text-slate-500">
+          <div className="grid grid-cols-[40px_110px_120px_140px_130px_1fr_1fr_180px_auto] items-center gap-3 py-2 text-xs font-medium text-slate-500">
+            <span />
             <span>영업담당자</span>
             <span>국가</span>
             <span>바이어</span>
@@ -286,7 +293,8 @@ function TTSection({
             <span />
           </div>
           {payments.map((payment) => (
-            <div key={payment.id} className="grid grid-cols-[110px_120px_140px_130px_1fr_1fr_180px_auto] items-center gap-3 py-3 text-sm">
+            <div key={payment.id} className="grid grid-cols-[40px_110px_120px_140px_130px_1fr_1fr_180px_auto] items-center gap-3 py-3 text-sm">
+              <PaymentTTCompletedCheckbox paymentId={payment.id} completed={payment.completed} />
               <RowButton onClick={() => startEdit(payment)}>{payment.salesOwner || "-"}</RowButton>
               <RowButton onClick={() => startEdit(payment)}>{payment.exportCountry || "-"}</RowButton>
               <RowButton onClick={() => startEdit(payment)}>{payment.buyer || "-"}</RowButton>
@@ -560,7 +568,17 @@ function Field({ label, className = "", children }: { label: string; className?:
   );
 }
 
-function PaymentSearchForm({ tab, defaultValue, pendingOnly }: { tab: "tt" | "lc"; defaultValue: string; pendingOnly: boolean }) {
+function PaymentSearchForm({
+  tab,
+  defaultValue,
+  pendingOnly,
+  incompleteOnly = false
+}: {
+  tab: "tt" | "lc";
+  defaultValue: string;
+  pendingOnly: boolean;
+  incompleteOnly?: boolean;
+}) {
   const placeholder =
     tab === "tt"
       ? "영업담당자, 국가, 바이어, 금액, 생산의뢰번호, INV No."
@@ -585,6 +603,19 @@ function PaymentSearchForm({ tab, defaultValue, pendingOnly }: { tab: "tt" | "lc
         />
         확인대기
       </label>
+      {tab === "tt" ? (
+        <label className="flex h-11 items-center gap-2 self-end whitespace-nowrap text-sm font-medium text-slate-700">
+          <input
+            type="checkbox"
+            name="incomplete"
+            value="1"
+            defaultChecked={incompleteOnly}
+            onChange={(event) => event.currentTarget.form?.requestSubmit()}
+            className="h-4 w-4"
+          />
+          미완료
+        </label>
+      ) : null}
     </form>
   );
 }
@@ -703,6 +734,37 @@ function AttachmentLinks({
         </span>
       ))}
     </div>
+  );
+}
+
+function PaymentTTCompletedCheckbox({ paymentId, completed }: { paymentId: string; completed: boolean }) {
+  const [checked, setChecked] = useState(completed);
+  const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    setChecked(completed);
+  }, [completed]);
+
+  function handleChange(next: boolean) {
+    setChecked(next);
+    const formData = new FormData();
+    formData.set("id", paymentId);
+    formData.set("completed", next ? "1" : "0");
+    startTransition(() => {
+      void togglePaymentTTCompletedAction(formData);
+    });
+  }
+
+  return (
+    <input
+      type="checkbox"
+      checked={checked}
+      disabled={pending}
+      className="h-4 w-4"
+      aria-label="완료"
+      onClick={(event) => event.stopPropagation()}
+      onChange={(event) => handleChange(event.target.checked)}
+    />
   );
 }
 

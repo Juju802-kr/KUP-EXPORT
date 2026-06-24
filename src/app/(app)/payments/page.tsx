@@ -18,6 +18,7 @@ function paymentMoreHref(params: Record<string, string | undefined>, nextLimit: 
   next.set("tab", params.tab === "lc" ? "lc" : "tt");
   if (params.q) next.set("q", params.q);
   if (params.pending === "1") next.set("pending", "1");
+  if (params.incomplete === "1") next.set("incomplete", "1");
   next.set("limit", String(nextLimit));
   return `/payments?${next.toString()}`;
 }
@@ -38,6 +39,7 @@ const ttPaymentSelect = {
   invNo: true,
   description: true,
   note: true,
+  completed: true,
   allocations: {
     orderBy: { sortOrder: "asc" },
     select: {
@@ -84,6 +86,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   const q = params.q?.trim();
   const editId = params.edit?.trim();
   const pendingOnly = params.pending === "1";
+  const incompleteOnly = params.incomplete === "1";
   const listLimit = parseListLimit(params.limit);
   const qAmount = q ? Number(q.replaceAll(",", "")) : NaN;
   const amountFilter = Number.isFinite(qAmount) ? [{ amount: qAmount }] : [];
@@ -109,7 +112,8 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
               { OR: [{ invNo: null }, { invNo: "" }] }
             ]
           }
-        : {}
+        : {},
+      incompleteOnly ? { completed: false } : {}
     ]
   };
   const lcWhere = {
@@ -225,6 +229,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
         mode={tab}
         searchQuery={q ?? ""}
         pendingOnly={pendingOnly}
+        incompleteOnly={incompleteOnly}
         ttPayments={visibleTtPayments.map((payment) => ({
           id: payment.id,
           exportCountry: payment.exportCountry,
@@ -241,6 +246,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
           invNo: payment.invNo,
           description: payment.description,
           note: payment.note,
+          completed: payment.completed,
           allocations: payment.allocations.map((allocation) => ({
             id: allocation.id,
             productionRequestNo: allocation.productionRequestNo,

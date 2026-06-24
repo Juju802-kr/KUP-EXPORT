@@ -802,6 +802,21 @@ export async function deletePaymentAction(formData: FormData) {
   redirect(`/payments?tab=${type}`);
 }
 
+export async function togglePaymentTTCompletedAction(formData: FormData) {
+  const user = await requireUser();
+  const id = formString(formData, "id");
+  if (!id) return;
+
+  await prisma.paymentTT.update({
+    where: { id },
+    data: {
+      completed: formString(formData, "completed") === "1",
+      updatedById: user.id
+    }
+  });
+  revalidatePath("/payments");
+}
+
 export async function deletePaymentAttachmentAction(formData: FormData) {
   await requireUser();
   const attachmentId = formString(formData, "attachmentId");
