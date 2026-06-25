@@ -14,6 +14,7 @@ import {
   paymentTtAttachmentBaseName
 } from "@/lib/payment-attachment-name";
 import { prisma } from "@/lib/prisma";
+import { lcDepositStatusAfterLcSd } from "@/lib/shipment-lc-deposit";
 import { saveAttachments, deleteAttachment } from "@/lib/upload";
 import { emailSchema, formDate, formNumber, formString, formUploadFiles } from "@/lib/validators";
 
@@ -513,12 +514,23 @@ async function autoLinkShipmentLc(shipmentId: string, userId: string) {
     : [];
   const sortedLcs = lcs.sort((a, b) => lcKindPriority(b.kind) - lcKindPriority(a.kind) || b.createdAt.getTime() - a.createdAt.getTime());
   const lc = sortedLcs.find((row) => row.lcSd) ?? sortedLcs[0];
+  const lcSd = lc?.lcSd ?? "";
+  const shipment = await prisma.shipmentRequest.findUnique({
+    where: { id: shipmentId },
+    select: { depositStatus: true }
+  });
+  const depositStatus = lcDepositStatusAfterLcSd(shipment?.depositStatus, lcSd);
   await prisma.$transaction([
     prisma.lcShipmentLink.deleteMany({ where: { shipmentId } }),
     ...(lc ? [prisma.lcShipmentLink.create({ data: { shipmentId, lcId: lc.id, createdById: userId } })] : []),
     prisma.shipmentRequest.update({
       where: { id: shipmentId },
-      data: { linkedLcId: lc?.id ?? null, lcSd: lc?.lcSd ?? "", updatedById: userId }
+      data: {
+        linkedLcId: lc?.id ?? null,
+        lcSd,
+        updatedById: userId,
+        ...(depositStatus ? { depositStatus } : {})
+      }
     })
   ]);
 }
@@ -1030,12 +1042,25 @@ export async function linkLcAction(formData: FormData) {
   const lcId = formString(formData, "lcId");
   const lc = await prisma.paymentLC.findUnique({ where: { id: lcId } });
   if (!lc) redirect(`/shipments/${shipmentId}`);
+  const shipment = await prisma.shipmentRequest.findUnique({
+    where: { id: shipmentId },
+    select: { depositStatus: true }
+  });
+  const depositStatus = lcDepositStatusAfterLcSd(shipment?.depositStatus, lc.lcSd);
   await prisma.lcShipmentLink.upsert({
     where: { lcId_shipmentId: { lcId, shipmentId } },
     update: {},
     create: { lcId, shipmentId, createdById: user.id }
   });
-  await prisma.shipmentRequest.update({ where: { id: shipmentId }, data: { linkedLcId: lcId, lcSd: lc.lcSd, updatedById: user.id } });
+  await prisma.shipmentRequest.update({
+    where: { id: shipmentId },
+    data: {
+      linkedLcId: lcId,
+      lcSd: lc.lcSd,
+      updatedById: user.id,
+      ...(depositStatus ? { depositStatus } : {})
+    }
+  });
   revalidatePath(`/shipments/${shipmentId}`);
   redirect(`/shipments/${shipmentId}`);
 }

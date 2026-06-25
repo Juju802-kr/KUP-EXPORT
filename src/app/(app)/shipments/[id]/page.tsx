@@ -2,6 +2,7 @@ import { AttachmentOwnerType, DropdownCategory, PaymentLcKind } from "@prisma/cl
 import { ShipmentDetailEditor } from "@/components/ShipmentDetailEditor";
 import { fmtDate, fmtDateTimeLocal } from "@/lib/constants";
 import { prisma } from "@/lib/prisma";
+import { lcDepositStatusAfterLcSd } from "@/lib/shipment-lc-deposit";
 import { shipmentDisplayTitle } from "@/lib/shipment-title";
 
 export default async function ShipmentDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -60,7 +61,15 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
 
   const sortedLcs = lcs.sort((a, b) => lcKindPriority(b.kind) - lcKindPriority(a.kind) || b.createdAt.getTime() - a.createdAt.getTime());
   const autoLinkedLc = sortedLcs.find((lc) => lc.lcSd) ?? sortedLcs[0];
-  if (shipment.linkedLcId !== (autoLinkedLc?.id ?? null) || (shipment.lcSd ?? "") !== (autoLinkedLc?.lcSd ?? "")) {
+  const nextLcSd = autoLinkedLc?.lcSd ?? "";
+  const nextDepositStatus = lcDepositStatusAfterLcSd(shipment.depositStatus, nextLcSd);
+  const depositStatus = nextDepositStatus ?? shipment.depositStatus;
+  const shouldSyncLc =
+    shipment.linkedLcId !== (autoLinkedLc?.id ?? null) ||
+    (shipment.lcSd ?? "") !== nextLcSd ||
+    nextDepositStatus !== null;
+
+  if (shouldSyncLc) {
     await prisma.$transaction([
       prisma.lcShipmentLink.deleteMany({ where: { shipmentId: shipment.id } }),
       ...(autoLinkedLc
@@ -68,7 +77,12 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
         : []),
       prisma.shipmentRequest.update({
         where: { id: shipment.id },
-        data: { linkedLcId: autoLinkedLc?.id ?? null, lcSd: autoLinkedLc?.lcSd ?? "", updatedById: shipment.updatedById }
+        data: {
+          linkedLcId: autoLinkedLc?.id ?? null,
+          lcSd: nextLcSd,
+          updatedById: shipment.updatedById,
+          ...(nextDepositStatus ? { depositStatus: nextDepositStatus } : {})
+        }
       })
     ]);
   }
@@ -90,8 +104,8 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
         departurePort: shipment.departurePort,
         transitFlight: shipment.transitFlight,
         currency: shipment.currency,
-        depositStatus: shipment.depositStatus,
-        lcSd: autoLinkedLc?.lcSd ?? shipment.lcSd,
+        depositStatus,
+        lcSd: nextLcSd || shipment.lcSd,
         salesOwner: shipment.salesOwner,
         exportOwner: shipment.exportOwner,
         salesEmailRecipients: shipment.salesEmailRecipients,
