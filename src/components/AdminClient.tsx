@@ -110,7 +110,7 @@ export function AdminClient({
     const keyword = dropdownSearch.trim().toLowerCase();
     if (!keyword) return true;
     const country = item.destinationCountry || (item.category === DropdownCategory.DESTINATION_PORT ? resolveDestinationMetadata(item.label).country : "");
-    const kind = destinationKindLabel(item.destinationKind || (item.category === DropdownCategory.DESTINATION_PORT ? resolveDestinationMetadata(item.label).kind : ""));
+    const kind = destinationKindLabel(item.destinationKind);
     return `${item.label} ${item.value} ${country} ${kind}`.toLowerCase().includes(keyword);
   });
   const filteredProductNames = productNames.filter((item) =>
@@ -398,10 +398,11 @@ function DestinationKindSelect({ defaultValue = "" }: { defaultValue?: string | 
     <AppSelect
       name="destinationKind"
       defaultValue={defaultValue ?? ""}
-      placeholder="자동"
+      placeholder="항구/공항"
+      required
       options={[
-        { value: "air", label: "공항" },
-        { value: "sea", label: "항구" }
+        { value: "sea", label: "항구" },
+        { value: "air", label: "공항" }
       ]}
     />
   );
@@ -521,7 +522,7 @@ function EditableDropdown({
               countries={countries}
               defaultValue={item.destinationCountry || inferred.country}
             />
-            <DestinationKindSelect defaultValue={item.destinationKind || inferred.kind} />
+            <DestinationKindSelect defaultValue={item.destinationKind} />
           </>
         ) : null}
         <input name="label" defaultValue={item.label} placeholder={item.category === DropdownCategory.FORWARDER ? "포워딩사" : undefined} required />
@@ -556,7 +557,7 @@ function EditableDropdown({
             {item.destinationCountry || resolveDestinationMetadata(item.label).country || "-"}
           </span>
           <span className={!item.destinationKind ? "text-amber-700" : "text-slate-600"}>
-            {destinationKindLabel(item.destinationKind || resolveDestinationMetadata(item.label).kind)}
+            {destinationKindLabel(item.destinationKind) || "-"}
           </span>
         </>
       ) : null}

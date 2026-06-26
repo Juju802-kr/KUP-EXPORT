@@ -1658,7 +1658,10 @@ export async function upsertDropdownAction(formData: FormData) {
     const { inferDestinationFields } = await import("@/lib/destination-registry");
     const inferred = inferDestinationFields(label);
     destinationCountry = formString(formData, "destinationCountry") || inferred.country || null;
-    destinationKind = formString(formData, "destinationKind") || inferred.kind;
+    destinationKind = formString(formData, "destinationKind");
+    if (destinationKind !== "air" && destinationKind !== "sea") {
+      fail("/admin", "구분(항구/공항)을 선택해주세요.");
+    }
   }
   const data = {
     category,
