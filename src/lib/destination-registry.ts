@@ -405,7 +405,7 @@ export function backfillDestinationPortMetadata(
       }
       return { id: row.id, destinationCountry, destinationKind };
     })
-    .filter((row): row is { id: string; destinationCountry: string | null; destinationKind: string } => row !== null);
+    .filter((row): row is { id: string; destinationCountry: string | null; destinationKind: DestinationKind } => row !== null);
 }
 
 /** 추론값으로 전체 목적항 메타를 덮어씀 */
