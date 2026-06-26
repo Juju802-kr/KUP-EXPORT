@@ -1,4 +1,4 @@
-﻿"use server";
+"use server";
 
 import { DropdownCategory, Factory, NoticeType, PaymentLcKind, ShipmentStatus, Team } from "@prisma/client";
 import { revalidatePath } from "next/cache";

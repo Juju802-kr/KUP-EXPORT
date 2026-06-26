@@ -426,8 +426,13 @@ export function listDestinationCatalogForCountry(country: string) {
   return DESTINATION_CATALOG.filter((entry) => entry.country === country);
 }
 
-export function buildDestinationRegistry(registered: RegisteredDestination[]): DestinationRegistryEntry[] {
-  return registered.map((item) => {
+function normalizeRegisteredDestination(item: RegisteredDestination | string): RegisteredDestination {
+  return typeof item === "string" ? { label: item } : item;
+}
+
+export function buildDestinationRegistry(registered: Array<RegisteredDestination | string>): DestinationRegistryEntry[] {
+  return registered.map((raw) => {
+    const item = normalizeRegisteredDestination(raw);
     const label = item.label.trim();
     const catalog = findCatalogEntry(label);
     const country = item.country?.trim() || catalog?.country || inferCountryFromLabel(label);
