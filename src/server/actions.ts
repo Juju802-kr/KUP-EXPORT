@@ -1652,11 +1652,21 @@ export async function upsertDropdownAction(formData: FormData) {
       fail("/admin", "포워딩사 이메일은 이메일 형식 또는 견적X만 입력할 수 있습니다.");
     }
   }
+  let destinationCountry: string | null = null;
+  let destinationKind: string | null = null;
+  if (category === DropdownCategory.DESTINATION_PORT) {
+    const { inferDestinationFields } = await import("@/lib/destination-registry");
+    const inferred = inferDestinationFields(label);
+    destinationCountry = formString(formData, "destinationCountry") || inferred.country || null;
+    destinationKind = formString(formData, "destinationKind") || inferred.kind;
+  }
   const data = {
     category,
     label,
     value,
     sortOrder: formNumber(formData, "sortOrder"),
+    destinationCountry,
+    destinationKind,
     updatedById: user.id
   };
   if (id) await prisma.dropdownOption.update({ where: { id }, data });

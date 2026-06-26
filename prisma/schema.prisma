@@ -1,4 +1,4 @@
-generator client {
+﻿generator client {
   provider = "prisma-client-js"
 }
 
@@ -145,15 +145,17 @@ model BuyerMaster {
 }
 
 model DropdownOption {
-  id          String           @id @default(cuid())
-  category    DropdownCategory
-  label       String
-  value       String
-  sortOrder   Int              @default(0)
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  createdById String?
-  updatedById String?
+  id                 String           @id @default(cuid())
+  category           DropdownCategory
+  label              String
+  value              String
+  sortOrder          Int              @default(0)
+  destinationCountry String?
+  destinationKind    String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  createdById        String?
+  updatedById        String?
 
   @@unique([category, label])
   @@index([category, sortOrder])

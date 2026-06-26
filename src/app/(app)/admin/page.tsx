@@ -34,7 +34,9 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
         category: option.category,
         label: option.label,
         value: option.value,
-        sortOrder: option.sortOrder
+        sortOrder: option.sortOrder,
+        destinationCountry: option.destinationCountry,
+        destinationKind: option.destinationKind
       }))}
       productNames={productNames.map((product) => ({
         id: product.id,

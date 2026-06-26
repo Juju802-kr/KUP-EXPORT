@@ -7,12 +7,21 @@ import { CountryCombobox } from "@/components/CountryCombobox";
 import { AppSelect } from "@/components/AppSelect";
 import { SalesRecipientsPicker } from "@/components/SalesRecipientsPicker";
 import { SearchableCombobox } from "@/components/SearchableCombobox";
+import { destinationKindLabel, resolveDestinationMetadata } from "@/lib/destination-registry";
 import { bulkUpdateBuyerMastersByCountryAction, changePasswordAction, deleteAccountAction, deleteGenericAction, reorderDropdownAction, upsertBuyerMasterAction, upsertDropdownAction, upsertExportProductNameAction, upsertProductMasterAction } from "@/server/actions";
 
 type UserRow = { id: string; name: string; email: string; team: Team; createdAt: string };
 type ProductRow = { id: string; name: string; factory: Factory };
 type BuyerRow = { id: string; exportCountry: string; buyerName: string; defaultCurrency: string | null; salesOwner: string | null; exportOwner: string | null; salesEmailRecipients: string | null };
-type DropdownRow = { id: string; category: DropdownCategory; label: string; value: string; sortOrder: number };
+type DropdownRow = {
+  id: string;
+  category: DropdownCategory;
+  label: string;
+  value: string;
+  sortOrder: number;
+  destinationCountry?: string | null;
+  destinationKind?: string | null;
+};
 type ExportProductNameRow = { id: string; exportCountry: string; productName: string; englishName: string; productCode: string };
 type DropdownSection = DropdownCategory | "PRODUCT_NAME";
 
@@ -97,7 +106,13 @@ export function AdminClient({
       buyer.salesEmailRecipients ?? ""
     ].join(" ").toLowerCase().includes(keyword);
   });
-  const filteredDropdowns = visibleDropdowns.filter((item) => `${item.label} ${item.value}`.toLowerCase().includes(dropdownSearch.trim().toLowerCase()));
+  const filteredDropdowns = visibleDropdowns.filter((item) => {
+    const keyword = dropdownSearch.trim().toLowerCase();
+    if (!keyword) return true;
+    const country = item.destinationCountry || (item.category === DropdownCategory.DESTINATION_PORT ? resolveDestinationMetadata(item.label).country : "");
+    const kind = destinationKindLabel(item.destinationKind || (item.category === DropdownCategory.DESTINATION_PORT ? resolveDestinationMetadata(item.label).kind : ""));
+    return `${item.label} ${item.value} ${country} ${kind}`.toLowerCase().includes(keyword);
+  });
   const filteredProductNames = productNames.filter((item) =>
     `${item.exportCountry} ${item.productName} ${item.englishName} ${item.productCode}`.toLowerCase().includes(dropdownSearch.trim().toLowerCase())
   );
@@ -229,7 +244,7 @@ export function AdminClient({
       <section className="panel p-5">
         <h2 className="text-base font-semibold">공통 드롭다운 관리</h2>
         <div className="mt-4 flex items-end gap-3">
-          <div className="field">
+          <div className="field w-36 shrink-0">
             <label>목차</label>
             <AppSelect value={category} onChange={(value) => setCategory(value as DropdownSection)} options={[...Object.entries(dropdownLabels).map(([value, label]) => ({ value, label })), { value: "PRODUCT_NAME", label: "제품명" }]} />
           </div>
@@ -239,6 +254,24 @@ export function AdminClient({
               <div className="field"><label>제품명</label><ProductMasterNameCombobox products={products} /></div>
               <div className="field"><label>영문제품명</label><input name="englishName" required /></div>
               <div className="field"><label>제품코드</label><input name="productCode" required /></div>
+              <button className="btn-primary h-11">추가</button>
+            </form>
+          ) : category === DropdownCategory.DESTINATION_PORT ? (
+            <form action={upsertDropdownAction} className="grid flex-1 grid-cols-[160px_120px_minmax(280px,1fr)_auto] items-end gap-2">
+              <input type="hidden" name="category" value={category} />
+              <input type="hidden" name="sortOrder" value={visibleDropdowns.length} />
+              <div className="field">
+                <label>수출국</label>
+                <CountryCombobox name="destinationCountry" countries={countries} />
+              </div>
+              <div className="field">
+                <label>구분</label>
+                <DestinationKindSelect />
+              </div>
+              <div className="field">
+                <label>목적항명</label>
+                <input name="label" placeholder="예: GHANA KOTOKA ACCRA AIRPORT (ACC)" required />
+              </div>
               <button className="btn-primary h-11">추가</button>
             </form>
           ) : (
@@ -255,11 +288,26 @@ export function AdminClient({
           )}
         </div>
         <SearchBox value={dropdownSearch} onChange={setDropdownSearch} placeholder={`${dropdownSectionLabel(category)} 검색`} />
+        {category === DropdownCategory.DESTINATION_PORT ? (
+          <div className="mt-3 grid grid-cols-[minmax(0,1fr)_120px_80px_120px] gap-3 px-2 text-xs font-medium text-slate-500">
+            <span>목적항명</span>
+            <span>수출국</span>
+            <span>구분</span>
+            <span className="text-right">관리</span>
+          </div>
+        ) : null}
         <div className="mt-4 divide-y divide-slate-100">
           {category === "PRODUCT_NAME"
             ? displayedProductNames.map((item) => <EditableExportProductName key={item.id} item={item} countries={countries} products={products} />)
             : displayedDropdowns.map((item) => (
-                <EditableDropdown key={item.id} item={item} onMove={moveDropdown} onDragStart={setDraggingId} onDrop={dropDropdown} />
+                <EditableDropdown
+                  key={item.id}
+                  item={item}
+                  countries={countries}
+                  onMove={moveDropdown}
+                  onDragStart={setDraggingId}
+                  onDrop={dropDropdown}
+                />
               ))}
           {(category === "PRODUCT_NAME" ? filteredProductNames.length : filteredDropdowns.length) === 0 ? <p className="py-3 text-sm text-slate-500">검색 결과가 없습니다.</p> : null}
         </div>
@@ -345,6 +393,20 @@ function LoadMoreButton({ shown, total, onClick }: { shown: number; total: numbe
   );
 }
 
+function DestinationKindSelect({ defaultValue = "" }: { defaultValue?: string | null }) {
+  return (
+    <AppSelect
+      name="destinationKind"
+      defaultValue={defaultValue ?? ""}
+      placeholder="자동"
+      options={[
+        { value: "air", label: "공항" },
+        { value: "sea", label: "항구" }
+      ]}
+    />
+  );
+}
+
 function ForwarderValueFields({ defaultValue = "", compact = false }: { defaultValue?: string; compact?: boolean }) {
   return (
     <div className={compact ? "" : "field min-w-80"}>
@@ -420,26 +482,48 @@ function EditableBuyer({ buyer, salesOwners, exportOwners, salesMailUsers, count
 
 function EditableDropdown({
   item,
+  countries,
   onMove,
   onDragStart,
   onDrop
 }: {
   item: DropdownRow;
+  countries: string[];
   onMove: (id: string, direction: -1 | 1) => void;
   onDragStart: (id: string) => void;
   onDrop: (id: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
+  const inferred = resolveDestinationMetadata(item.label);
   if (editing) {
     async function save(formData: FormData) {
       await upsertDropdownAction(formData);
       setEditing(false);
     }
     return (
-      <form action={save} className={`grid gap-3 py-2 text-sm ${item.category === DropdownCategory.FORWARDER ? "grid-cols-[1fr_220px_auto]" : "grid-cols-[1fr_auto]"}`}>
+      <form
+        action={save}
+        className={`grid gap-3 py-2 text-sm ${
+          item.category === DropdownCategory.DESTINATION_PORT
+            ? "grid-cols-[160px_120px_minmax(280px,1fr)_auto]"
+            : item.category === DropdownCategory.FORWARDER
+              ? "grid-cols-[1fr_220px_auto]"
+              : "grid-cols-[1fr_auto]"
+        }`}
+      >
         <input type="hidden" name="id" value={item.id} />
         <input type="hidden" name="category" value={item.category} />
         <input type="hidden" name="sortOrder" value={item.sortOrder} />
+        {item.category === DropdownCategory.DESTINATION_PORT ? (
+          <>
+            <CountryCombobox
+              name="destinationCountry"
+              countries={countries}
+              defaultValue={item.destinationCountry || inferred.country}
+            />
+            <DestinationKindSelect defaultValue={item.destinationKind || inferred.kind} />
+          </>
+        ) : null}
         <input name="label" defaultValue={item.label} placeholder={item.category === DropdownCategory.FORWARDER ? "포워딩사" : undefined} required />
         {item.category === DropdownCategory.FORWARDER ? <ForwarderValueFields defaultValue={item.value === item.label ? "" : item.value} compact /> : null}
         <div className="flex gap-2">
@@ -451,20 +535,34 @@ function EditableDropdown({
   }
   return (
     <div
-      className="flex cursor-grab items-center justify-between gap-3 py-2 text-sm"
+      className={`flex cursor-grab items-center justify-between gap-3 py-2 text-sm ${
+        item.category === DropdownCategory.DESTINATION_PORT ? "grid grid-cols-[minmax(0,1fr)_120px_80px_120px] items-center gap-3" : ""
+      }`}
       draggable
       onDragStart={() => onDragStart(item.id)}
       onDragOver={(event) => event.preventDefault()}
       onDrop={() => onDrop(item.id)}
     >
-      <div className="flex items-center gap-2">
-        <GripVertical size={16} className="text-slate-400" />
-        <button className="btn px-2 py-1" type="button" onClick={() => onMove(item.id, -1)}>위</button>
-        <button className="btn px-2 py-1" type="button" onClick={() => onMove(item.id, 1)}>아래</button>
-        <span>{item.label}</span>
+      <div className="flex min-w-0 items-center gap-2">
+        <GripVertical size={16} className="shrink-0 text-slate-400" />
+        <button className="btn shrink-0 px-2 py-1" type="button" onClick={() => onMove(item.id, -1)}>위</button>
+        <button className="btn shrink-0 px-2 py-1" type="button" onClick={() => onMove(item.id, 1)}>아래</button>
+        <span className="truncate">{item.label}</span>
         {item.category === DropdownCategory.FORWARDER && item.value !== item.label ? <span className="text-slate-500">{item.value}</span> : null}
       </div>
-      <RowActions id={item.id} model="dropdown" onEdit={() => setEditing(true)} />
+      {item.category === DropdownCategory.DESTINATION_PORT ? (
+        <>
+          <span className={!item.destinationCountry ? "text-amber-700" : "text-slate-600"}>
+            {item.destinationCountry || resolveDestinationMetadata(item.label).country || "-"}
+          </span>
+          <span className={!item.destinationKind ? "text-amber-700" : "text-slate-600"}>
+            {destinationKindLabel(item.destinationKind || resolveDestinationMetadata(item.label).kind)}
+          </span>
+        </>
+      ) : null}
+      <div className={item.category === DropdownCategory.DESTINATION_PORT ? "justify-self-end" : "ml-auto"}>
+        <RowActions id={item.id} model="dropdown" onEdit={() => setEditing(true)} />
+      </div>
     </div>
   );
 }
