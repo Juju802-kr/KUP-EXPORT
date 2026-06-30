@@ -247,8 +247,8 @@ function TTSection({
               <OwnerSelect label="입금담당자" name="depositOwner" users={exportOwners} value={autoDepositOwner} fallbackOption="이해원" />
               <Field label="영업메일수신자"><input name="salesEmailRecipients" value={autoSalesRecipients} onChange={() => undefined} /></Field>
             </div>
-            <Field label="첨부파일" className="col-span-4">
-              <input name="files" type="file" multiple />
+            <Field label="첨부파일" className="w-full">
+              <input name="files" type="file" multiple className="block w-full" />
               {editing ? <ExistingAttachments files={currentAttachments} paymentId={current.id} tab="tt" /> : null}
             </Field>
           </div>
@@ -266,7 +266,7 @@ function TTSection({
                 note: current.note
               }]}
             />
-            <Field label="첨부파일" className="mt-4">
+            <Field label="첨부파일" className="mt-4 w-full">
               <PaymentTTConfirmFileUpload paymentId={current.id} />
               <ExistingAttachments files={currentConfirmAttachments} paymentId={current.id} tab="tt" />
             </Field>
@@ -412,8 +412,8 @@ function LCSection({
               <OwnerSelect label="수출담당자" name="exportOwner" users={exportOwners} value={autoExportOwner} />
               <Field label="영업메일수신자"><input name="salesEmailRecipients" value={autoSalesRecipients} onChange={() => undefined} /></Field>
             </div>
-            <Field label="첨부파일" className="col-span-4">
-              <input name="files" type="file" multiple />
+            <Field label="첨부파일" className="w-full">
+              <input name="files" type="file" multiple className="block w-full" />
               {editing ? <ExistingAttachments files={currentAttachments} paymentId={current.id} tab="lc" /> : null}
             </Field>
           </div>
@@ -764,8 +764,8 @@ function PaymentTTConfirmFileUpload({ paymentId }: { paymentId: string }) {
   }
 
   return (
-    <div className="space-y-1">
-      <input ref={inputRef} type="file" multiple disabled={pending} onChange={handleChange} />
+    <div className="w-full space-y-1">
+      <input ref={inputRef} type="file" multiple disabled={pending} onChange={handleChange} className="block w-full" />
       {pending ? <p className="text-xs text-slate-500">첨부파일 저장 중...</p> : null}
     </div>
   );
