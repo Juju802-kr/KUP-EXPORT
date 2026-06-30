@@ -23,9 +23,14 @@ function requireWritableStorage() {
   return null;
 }
 
+function fileExtension(fileName: string) {
+  const match = fileName.normalize("NFC").match(/(\.[A-Za-z0-9]{1,16})$/);
+  return match?.[1]?.toLowerCase() ?? "";
+}
+
+/** Supabase Storage keys must stay ASCII-only; keep the original name in the DB. */
 function safeStoredName(fileName: string) {
-  const safeName = fileName.normalize("NFC").replace(/[^\p{L}\p{N}._-]+/gu, "_");
-  return `${Date.now()}-${crypto.randomUUID()}-${safeName}`;
+  return `${Date.now()}-${crypto.randomUUID()}${fileExtension(fileName)}`;
 }
 
 export async function deleteAttachment(attachmentId: string) {
