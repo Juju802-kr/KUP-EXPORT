@@ -563,18 +563,22 @@ export async function confirmPaymentTTAction(formData: FormData) {
 export async function uploadPaymentTTConfirmAttachmentsAction(formData: FormData) {
   const user = await requireUser();
   const id = formString(formData, "id");
-  if (!id) throw new Error("저장할 T/T 입금을 선택해주세요.");
+  if (!id) return { ok: false as const, message: "저장할 T/T 입금을 선택해주세요." };
 
   const files = formUploadFiles(formData, "confirmFiles");
-  if (!files.length) throw new Error("첨부파일을 선택해주세요.");
+  if (!files.length) return { ok: false as const, message: "첨부파일을 선택해주세요." };
 
   try {
     await saveAttachments(files, "PAYMENT_TT", paymentTtConfirmOwnerId(id), user.id);
   } catch (error) {
-    throw new Error(error instanceof Error ? error.message : "첨부파일 저장에 실패했습니다.");
+    return {
+      ok: false as const,
+      message: error instanceof Error ? error.message : "첨부파일 저장에 실패했습니다."
+    };
   }
 
   revalidatePath("/payments");
+  return { ok: true as const };
 }
 
 export async function savePaymentTTConfirmSectionAction(formData: FormData) {

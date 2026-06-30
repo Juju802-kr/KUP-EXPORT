@@ -752,14 +752,14 @@ function PaymentTTConfirmFileUpload({ paymentId }: { paymentId: string }) {
     for (const file of selected) formData.append("confirmFiles", file);
 
     startTransition(async () => {
-      try {
-        await uploadPaymentTTConfirmAttachmentsAction(formData);
-        router.refresh();
-      } catch (error) {
-        alert(error instanceof Error ? error.message : "첨부파일 저장에 실패했습니다.");
-      } finally {
+      const result = await uploadPaymentTTConfirmAttachmentsAction(formData);
+      if (!result.ok) {
+        alert(result.message);
         if (inputRef.current) inputRef.current.value = "";
+        return;
       }
+      router.refresh();
+      if (inputRef.current) inputRef.current.value = "";
     });
   }
 

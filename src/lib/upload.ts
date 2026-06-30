@@ -14,6 +14,15 @@ function storageClient() {
   return { bucket, client: createClient(url, key, { auth: { persistSession: false } }) };
 }
 
+function requireWritableStorage() {
+  const storage = storageClient();
+  if (storage) return storage;
+  if (process.env.VERCEL) {
+    throw new Error("배포 환경에서 Supabase Storage 설정(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_STORAGE_BUCKET)이 필요합니다.");
+  }
+  return null;
+}
+
 function safeStoredName(fileName: string) {
   const safeName = fileName.normalize("NFC").replace(/[^\p{L}\p{N}._-]+/gu, "_");
   return `${Date.now()}-${crypto.randomUUID()}-${safeName}`;
@@ -40,7 +49,7 @@ export async function saveAttachments(files: File[], ownerType: AttachmentOwnerT
   const uploadableFiles = files.filter((file) => file && file.size > 0);
   if (!uploadableFiles.length) return;
 
-  const storage = storageClient();
+  const storage = requireWritableStorage();
   if (!storage) await mkdir(uploadDir, { recursive: true });
 
   for (const file of uploadableFiles) {
