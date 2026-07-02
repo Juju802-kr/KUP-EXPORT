@@ -74,7 +74,8 @@ function effectiveAllocations(source: PaymentAttachmentNameSource) {
 export function paymentTtAttachmentBaseName(source: PaymentAttachmentNameSource) {
   const allocations = effectiveAllocations(source);
   const details = allocations.flatMap((row) => [
-    compact(row.productionRequestNo) || compact(row.invNo),
+    compact(row.productionRequestNo),
+    compact(row.invNo),
     money(row.amount, source.currency),
     compact(row.note)
   ]);
