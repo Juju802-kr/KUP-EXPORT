@@ -1397,22 +1397,11 @@ export async function updateBuyerSpecialNoteAction(formData: FormData) {
 const noticeMailTeams: Team[] = [Team.OVERSEAS_MARKETING, Team.OVERSEAS_SALES, Team.OVERSEAS_SALES_SUPPORT];
 const salesMailTeams: Team[] = [Team.OVERSEAS_MARKETING, Team.OVERSEAS_SALES, Team.OVERSEAS_BRANCH];
 const exportOwnerTeams: Team[] = [Team.OVERSEAS_SALES_SUPPORT];
-const noticeTeamLabels: Record<string, string> = {
-  "전체": "전체",
-  [Team.OVERSEAS_MARKETING]: "해외마케팅팀",
-  [Team.OVERSEAS_SALES]: "해외영업팀",
-  [Team.OVERSEAS_SALES_SUPPORT]: "해외영업지원팀"
-};
 
 function noticeMailTargetTeams(targetTeams: string[]) {
   return targetTeams.includes("전체")
     ? noticeMailTeams
     : targetTeams.filter((team): team is Team => noticeMailTeams.includes(team as Team));
-}
-
-function noticeTargetTeamText(targetTeams: string[]) {
-  const teams = targetTeams.includes("전체") ? noticeMailTeams : targetTeams;
-  return teams.map((team) => noticeTeamLabels[team] ?? team).join(", ");
 }
 
 export async function saveNoticeAction(formData: FormData) {
@@ -1473,13 +1462,11 @@ export async function saveNoticeAction(formData: FormData) {
   const recipients = await prisma.user.findMany({ where: { team: { in: mailTeams } }, select: { email: true } });
   const importantPrefix = notice.important ? "[\uc911\uc694!] " : "";
   const changePrefix = isCancel ? "\u203b\ucde8\uc18c\u203b" : isEditNotice ? "\u2605\uc218\uc815\u2605" : "";
-  const teamText = noticeTargetTeamText(targetTeams);
   const bodyLines = [
     "제목: " + notice.title,
     "공지 유형: " + noticeTypeText(notice.type),
     ...(notice.place ? ["장소: " + notice.place] : []),
     ...noticeScheduleBodyLines(notice.scheduleDate, notice.scheduleEndDate),
-    "대상 팀: " + teamText,
     "",
     isCancel ? "취소 사유:" : "공지 내용:",
     notice.content
