@@ -9,7 +9,7 @@ import { CountryCombobox } from "@/components/CountryCombobox";
 import { AppSelect } from "@/components/AppSelect";
 import { DeleteButton } from "@/components/DeleteButton";
 import { SearchableCombobox } from "@/components/SearchableCombobox";
-import { confirmPaymentLCAction, confirmPaymentTTConfirmSectionAction, createPaymentLCAction, createPaymentTTAction, deletePaymentAction, deletePaymentAttachmentAction, notifyPaymentLCAction, notifyPaymentTTAction, savePaymentTTConfirmSectionAction, togglePaymentTTCompletedAction, uploadPaymentTTConfirmAttachmentsAction } from "@/server/actions";
+import { confirmPaymentLCAction, confirmPaymentTTConfirmSectionAction, createPaymentLCAction, createPaymentTTAction, deletePaymentAction, deletePaymentAttachmentAction, notifyPaymentLCAction, notifyPaymentTTAction, savePaymentTTConfirmSectionAction, togglePaymentTTCompletedAction, uploadPaymentLCConfirmAttachmentsAction, uploadPaymentTTConfirmAttachmentsAction } from "@/server/actions";
 
 type UserOption = { id: string; name: string; team: Team };
 type BuyerOption = {
@@ -71,6 +71,7 @@ type PaymentLCAllocationRow = {
   id: string;
   productionRequestNo: string | null;
   amount: unknown;
+  note: string | null;
 };
 type AttachmentRow = {
   id: string;
@@ -84,8 +85,16 @@ function paymentTtConfirmOwnerId(paymentId: string) {
   return `${paymentId}:confirm`;
 }
 
+function paymentLcConfirmOwnerId(paymentId: string) {
+  return `${paymentId}:confirm`;
+}
+
 function isPaymentTtConfirmAttachment(ownerId: string, paymentId: string) {
   return ownerId === paymentTtConfirmOwnerId(paymentId);
+}
+
+function isPaymentLcConfirmAttachment(ownerId: string, paymentId: string) {
+  return ownerId === paymentLcConfirmOwnerId(paymentId);
 }
 
 const emptyTT: PaymentTTRow = {
@@ -344,6 +353,7 @@ function LCSection({
   const current = editing ?? emptyLC;
   const selectedBuyer = useMemo(() => buyers.find((buyer) => buyer.buyerName === buyerName), [buyers, buyerName]);
   const currentAttachments = attachments.filter((file) => file.ownerId === current.id);
+  const currentConfirmAttachments = attachments.filter((file) => isPaymentLcConfirmAttachment(file.ownerId, current.id));
 
   function startEdit(payment: PaymentLCRow) {
     setEditing(payment);
@@ -426,9 +436,14 @@ function LCSection({
               rows={current.allocations.length ? current.allocations : [{
                 id: "",
                 productionRequestNo: current.productionRequestNo,
-                amount: current.amount
+                amount: current.amount,
+                note: current.note
               }]}
             />
+            <Field label="첨부파일" className="mt-4 w-full">
+              <PaymentLCConfirmFileUpload paymentId={current.id} />
+              <ExistingAttachments files={currentConfirmAttachments} paymentId={current.id} tab="lc" />
+            </Field>
             <div className="mt-4 flex justify-end gap-2">
               <button className="btn" formAction={createPaymentLCAction}>저장</button>
               <button className="btn-primary" formAction={confirmPaymentLCAction}>등록</button>
@@ -463,7 +478,7 @@ function LCSection({
               <RowButton onClick={() => startEdit(payment)}>{payment.productionRequestNo || "-"}</RowButton>
               <RowButton onClick={() => startEdit(payment)}>{payment.lcNo || "-"}</RowButton>
               <RowButton onClick={() => startEdit(payment)} muted>{payment.lcSd || "-"}</RowButton>
-              <AttachmentLinks truncate files={attachments.filter((file) => file.ownerId === payment.id)} />
+              <AttachmentLinks truncate files={attachments.filter((file) => file.ownerId === payment.id || isPaymentLcConfirmAttachment(file.ownerId, payment.id))} />
               <DeletePaymentForm id={payment.id} type="lc" />
             </div>
           ))}
@@ -529,7 +544,7 @@ function PaymentLCAllocationRows({ rows }: { rows: PaymentLCAllocationRow[] }) {
   function addRow() {
     setItems((current) => [
       ...current,
-      { key: crypto.randomUUID(), row: { id: "", productionRequestNo: "", amount: "" } }
+      { key: crypto.randomUUID(), row: { id: "", productionRequestNo: "", amount: "", note: "" } }
     ]);
   }
 
@@ -546,9 +561,10 @@ function PaymentLCAllocationRows({ rows }: { rows: PaymentLCAllocationRow[] }) {
         {items.map((item) => {
           const row = item.row;
           return (
-            <div key={item.key} className="grid grid-cols-[1fr_180px_auto] items-end gap-3">
+            <div key={item.key} className="grid grid-cols-[1fr_180px_1.5fr_auto] items-end gap-3">
               <Field label="생산의뢰번호"><input name="lcAllocationProductionRequestNo" defaultValue={row.productionRequestNo ?? ""} /></Field>
               <Field label="금액"><AmountInput name="lcAllocationAmount" defaultValue={row.amount} /></Field>
+              <Field label="비고"><input name="lcAllocationNote" defaultValue={row.note ?? ""} /></Field>
               <button type="button" className="h-11 rounded-md bg-red-600 px-4 text-sm font-semibold text-white hover:bg-red-700" onClick={() => removeRow(item.key)}>
                 삭제
               </button>
@@ -739,6 +755,20 @@ function AttachmentLinks({
 }
 
 function PaymentTTConfirmFileUpload({ paymentId }: { paymentId: string }) {
+  return <PaymentConfirmFileUpload paymentId={paymentId} uploadAction={uploadPaymentTTConfirmAttachmentsAction} />;
+}
+
+function PaymentLCConfirmFileUpload({ paymentId }: { paymentId: string }) {
+  return <PaymentConfirmFileUpload paymentId={paymentId} uploadAction={uploadPaymentLCConfirmAttachmentsAction} />;
+}
+
+function PaymentConfirmFileUpload({
+  paymentId,
+  uploadAction
+}: {
+  paymentId: string;
+  uploadAction: (formData: FormData) => Promise<{ ok: true } | { ok: false; message: string }>;
+}) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [pending, startTransition] = useTransition();
@@ -752,7 +782,7 @@ function PaymentTTConfirmFileUpload({ paymentId }: { paymentId: string }) {
     for (const file of selected) formData.append("confirmFiles", file);
 
     startTransition(async () => {
-      const result = await uploadPaymentTTConfirmAttachmentsAction(formData);
+      const result = await uploadAction(formData);
       if (!result.ok) {
         alert(result.message);
         if (inputRef.current) inputRef.current.value = "";

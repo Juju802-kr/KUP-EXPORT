@@ -8,11 +8,6 @@ import { destroySession, createSession, hashPassword, requireUser, verifyPasswor
 import { resolveRecipientEmails, sendProgramEmail } from "@/lib/email-program";
 import { fmtDate } from "@/lib/constants";
 import { sendOrLogEmail } from "@/lib/mail";
-import {
-  attachmentNameWithOriginalExtension,
-  paymentLcAttachmentBaseName,
-  paymentTtAttachmentBaseName
-} from "@/lib/payment-attachment-name";
 import { prisma } from "@/lib/prisma";
 import { lcDepositStatusAfterLcSd } from "@/lib/shipment-lc-deposit";
 import { saveAttachments, deleteAttachment } from "@/lib/upload";
@@ -621,6 +616,10 @@ function paymentTtConfirmOwnerId(paymentId: string) {
   return `${paymentId}:confirm`;
 }
 
+function paymentLcConfirmOwnerId(paymentId: string) {
+  return `${paymentId}:confirm`;
+}
+
 async function savePaymentTT(formData: FormData, intent: string) {
   const user = await requireUser();
   const id = formString(formData, "id");
@@ -633,7 +632,6 @@ async function savePaymentTT(formData: FormData, intent: string) {
   ]).catch((error) => {
     fail(`/payments?tab=tt${payment.id ? `&edit=${payment.id}` : ""}`, error instanceof Error ? error.message : "저장에 실패했습니다.");
   });
-  await renamePaymentTtAttachments(payment.id);
   if (intent === "notify") emailQueueRedirect("/payments?tab=tt", () => sendPaymentTtNotifyMail(payment.id, user.id));
   if (intent === "confirm") emailQueueRedirect("/payments?tab=tt", () => sendPaymentTtConfirmMail(payment.id, user.id));
   revalidatePath("/payments");
@@ -652,6 +650,27 @@ export async function confirmPaymentLCAction(formData: FormData) {
   return savePaymentLC(formData, "confirm");
 }
 
+export async function uploadPaymentLCConfirmAttachmentsAction(formData: FormData) {
+  const user = await requireUser();
+  const id = formString(formData, "id");
+  if (!id) return { ok: false as const, message: "저장할 L/C 통지를 선택해주세요." };
+
+  const files = formUploadFiles(formData, "confirmFiles");
+  if (!files.length) return { ok: false as const, message: "첨부파일을 선택해주세요." };
+
+  try {
+    await saveAttachments(files, "PAYMENT_LC", paymentLcConfirmOwnerId(id), user.id);
+  } catch (error) {
+    return {
+      ok: false as const,
+      message: error instanceof Error ? error.message : "첨부파일 저장에 실패했습니다."
+    };
+  }
+
+  revalidatePath("/payments");
+  return { ok: true as const };
+}
+
 async function savePaymentLC(formData: FormData, intent: string) {
   const user = await requireUser();
   const id = formString(formData, "id");
@@ -662,7 +681,6 @@ async function savePaymentLC(formData: FormData, intent: string) {
     savePaymentLCAllocations(payment.id, allocations),
     saveAttachments(formData.getAll("files").filter((f): f is File => f instanceof File), "PAYMENT_LC", payment.id, user.id)
   ]);
-  await renamePaymentLcAttachments(payment.id);
   await autoLinkLcToShipments(payment.id, user.id);
   if (intent === "notify") emailQueueRedirect("/payments?tab=lc", () => sendPaymentLcNotifyMail(payment.id, user.id));
   if (intent === "confirm") emailQueueRedirect("/payments?tab=lc", () => sendPaymentLcConfirmMail(payment.id, user.id));
@@ -686,6 +704,7 @@ type TTAllocationInput = {
 type LCAllocationInput = {
   productionRequestNo: string;
   amount: number;
+  note: string;
 };
 
 function parseMoneyInput(value: FormDataEntryValue | string | null | undefined) {
@@ -728,11 +747,13 @@ function readPaymentTTAllocations(formData: FormData, paymentAmount: number, pay
 function readPaymentLCAllocations(formData: FormData, paymentAmount: number, paymentId?: string): LCAllocationInput[] | null {
   const productionNos = formData.getAll("lcAllocationProductionRequestNo").map(String);
   const amounts = formData.getAll("lcAllocationAmount");
-  if (!productionNos.length && !amounts.length) return null;
-  const rows = Array.from({ length: Math.max(productionNos.length, amounts.length) }, (_, index) => ({
+  const notes = formData.getAll("lcAllocationNote").map(String);
+  if (!productionNos.length && !amounts.length && !notes.length) return null;
+  const rows = Array.from({ length: Math.max(productionNos.length, amounts.length, notes.length) }, (_, index) => ({
     productionRequestNo: productionNos[index]?.trim() ?? "",
-    amount: parseMoneyInput(amounts[index])
-  })).filter((row) => row.productionRequestNo || row.amount);
+    amount: parseMoneyInput(amounts[index]),
+    note: notes[index]?.trim() ?? ""
+  })).filter((row) => row.productionRequestNo || row.amount || row.note);
   if (rows.length && !sameMoney(sumMoney(rows), paymentAmount)) {
     fail(`/payments?tab=lc${paymentId ? `&edit=${paymentId}` : ""}`, "입력한 금액 합이 통지된 금액과 맞지 않습니다.");
   }
@@ -776,6 +797,7 @@ async function savePaymentLCAllocations(paymentId: string, allocations: LCAlloca
           paymentId,
           productionRequestNo: row.productionRequestNo,
           amount: row.amount,
+          note: row.note,
           sortOrder: index
         }
       })
@@ -783,62 +805,11 @@ async function savePaymentLCAllocations(paymentId: string, allocations: LCAlloca
     prisma.paymentLC.update({
       where: { id: paymentId },
       data: {
-        productionRequestNo: joinNonEmpty(allocations.map((row) => row.productionRequestNo))
+        productionRequestNo: joinNonEmpty(allocations.map((row) => row.productionRequestNo)),
+        note: joinNonEmpty(allocations.map((row) => row.note))
       }
     })
   ]);
-}
-
-async function renamePaymentTtAttachments(paymentId: string) {
-  const [payment, attachments] = await Promise.all([
-    prisma.paymentTT.findUnique({
-      where: { id: paymentId },
-      include: { allocations: { orderBy: { sortOrder: "asc" } } }
-    }),
-    prisma.attachment.findMany({ where: { ownerType: "PAYMENT_TT", ownerId: paymentId } })
-  ]);
-  if (!payment || !attachments.length) return;
-  const baseName = paymentTtAttachmentBaseName({
-    date: payment.date,
-    buyer: payment.buyer,
-    currency: payment.currency,
-    amount: payment.amount,
-    productionRequestNo: payment.productionRequestNo,
-    invNo: payment.invNo,
-    note: payment.note,
-    allocations: payment.allocations
-  });
-  await prisma.$transaction(attachments.map((attachment) =>
-    prisma.attachment.update({
-      where: { id: attachment.id },
-      data: { originalName: attachmentNameWithOriginalExtension(baseName, attachment.originalName) }
-    })
-  ));
-}
-
-async function renamePaymentLcAttachments(paymentId: string) {
-  const [payment, attachments] = await Promise.all([
-    prisma.paymentLC.findUnique({
-      where: { id: paymentId },
-      include: { allocations: { orderBy: { sortOrder: "asc" } } }
-    }),
-    prisma.attachment.findMany({ where: { ownerType: "PAYMENT_LC", ownerId: paymentId } })
-  ]);
-  if (!payment || !attachments.length) return;
-  const baseName = paymentLcAttachmentBaseName({
-    date: payment.noticeDate,
-    buyer: payment.buyer,
-    currency: payment.currency,
-    amount: payment.amount,
-    productionRequestNo: payment.productionRequestNo,
-    allocations: payment.allocations
-  });
-  await prisma.$transaction(attachments.map((attachment) =>
-    prisma.attachment.update({
-      where: { id: attachment.id },
-      data: { originalName: attachmentNameWithOriginalExtension(baseName, attachment.originalName) }
-    })
-  ));
 }
 
 export async function deletePaymentAction(formData: FormData) {
@@ -879,7 +850,7 @@ export async function deletePaymentAttachmentAction(formData: FormData) {
   const attachment = await prisma.attachment.findUnique({ where: { id: attachmentId } });
   if (!attachment) fail(redirectPath, "첨부파일을 찾을 수 없습니다.");
 
-  const allowedOwnerIds = new Set([paymentId, paymentTtConfirmOwnerId(paymentId)]);
+  const allowedOwnerIds = new Set([paymentId, paymentTtConfirmOwnerId(paymentId), paymentLcConfirmOwnerId(paymentId)]);
   if (!allowedOwnerIds.has(attachment.ownerId)) fail(redirectPath, "삭제할 수 없는 첨부파일입니다.");
   if (attachment.ownerType !== "PAYMENT_TT" && attachment.ownerType !== "PAYMENT_LC") {
     fail(redirectPath, "삭제할 수 없는 첨부파일입니다.");

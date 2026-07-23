@@ -76,7 +76,8 @@ const lcPaymentSelect = {
     select: {
       id: true,
       productionRequestNo: true,
-      amount: true
+      amount: true,
+      note: true
     }
   }
 } as const;
@@ -193,6 +194,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   ];
   const paymentIds = [...visibleTtPayments.map((payment) => payment.id), ...visibleLcPayments.map((payment) => payment.id)];
   const ttConfirmOwnerIds = visibleTtPayments.map((payment) => `${payment.id}:confirm`);
+  const lcConfirmOwnerIds = visibleLcPayments.map((payment) => `${payment.id}:confirm`);
   const attachmentFilters = [];
   if (paymentIds.length) {
     attachmentFilters.push({
@@ -204,6 +206,12 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
     attachmentFilters.push({
       ownerId: { in: ttConfirmOwnerIds },
       ownerType: AttachmentOwnerType.PAYMENT_TT
+    });
+  }
+  if (lcConfirmOwnerIds.length) {
+    attachmentFilters.push({
+      ownerId: { in: lcConfirmOwnerIds },
+      ownerType: AttachmentOwnerType.PAYMENT_LC
     });
   }
   const attachments = attachmentFilters.length
@@ -280,7 +288,8 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
           allocations: payment.allocations.map((allocation) => ({
             id: allocation.id,
             productionRequestNo: allocation.productionRequestNo,
-            amount: Number(allocation.amount)
+            amount: Number(allocation.amount),
+            note: allocation.note
           }))
         }))}
         buyers={buyers.map((buyer) => ({
