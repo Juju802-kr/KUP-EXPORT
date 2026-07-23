@@ -8,6 +8,10 @@ import { destroySession, createSession, hashPassword, requireUser, verifyPasswor
 import { resolveRecipientEmails, sendProgramEmail } from "@/lib/email-program";
 import { fmtDate } from "@/lib/constants";
 import { sendOrLogEmail } from "@/lib/mail";
+import {
+  attachmentNameWithOriginalExtension,
+  paymentTtAttachmentBaseName
+} from "@/lib/payment-attachment-name";
 import { prisma } from "@/lib/prisma";
 import { lcDepositStatusAfterLcSd } from "@/lib/shipment-lc-deposit";
 import { saveAttachments, deleteAttachment } from "@/lib/upload";
@@ -589,6 +593,7 @@ export async function savePaymentTTConfirmSectionAction(formData: FormData) {
   if (allocations !== null) {
     await savePaymentTTAllocations(id, allocations);
   }
+  await renamePaymentTtAttachments(id);
 
   revalidatePath("/payments");
   succeed(redirectPath, "저장했습니다.");
@@ -607,6 +612,7 @@ export async function confirmPaymentTTConfirmSectionAction(formData: FormData) {
   if (allocations !== null) {
     await savePaymentTTAllocations(id, allocations);
   }
+  await renamePaymentTtAttachments(id);
 
   revalidatePath("/payments");
   emailQueueRedirect(redirectPath, () => sendPaymentTtConfirmMail(id, user.id));
@@ -632,6 +638,7 @@ async function savePaymentTT(formData: FormData, intent: string) {
   ]).catch((error) => {
     fail(`/payments?tab=tt${payment.id ? `&edit=${payment.id}` : ""}`, error instanceof Error ? error.message : "저장에 실패했습니다.");
   });
+  await renamePaymentTtAttachments(payment.id);
   if (intent === "notify") emailQueueRedirect("/payments?tab=tt", () => sendPaymentTtNotifyMail(payment.id, user.id));
   if (intent === "confirm") emailQueueRedirect("/payments?tab=tt", () => sendPaymentTtConfirmMail(payment.id, user.id));
   revalidatePath("/payments");
@@ -810,6 +817,33 @@ async function savePaymentLCAllocations(paymentId: string, allocations: LCAlloca
       }
     })
   ]);
+}
+
+async function renamePaymentTtAttachments(paymentId: string) {
+  const [payment, attachments] = await Promise.all([
+    prisma.paymentTT.findUnique({
+      where: { id: paymentId },
+      include: { allocations: { orderBy: { sortOrder: "asc" } } }
+    }),
+    prisma.attachment.findMany({ where: { ownerType: "PAYMENT_TT", ownerId: paymentId } })
+  ]);
+  if (!payment || !attachments.length) return;
+  const baseName = paymentTtAttachmentBaseName({
+    date: payment.date,
+    buyer: payment.buyer,
+    currency: payment.currency,
+    amount: payment.amount,
+    productionRequestNo: payment.productionRequestNo,
+    invNo: payment.invNo,
+    note: payment.note,
+    allocations: payment.allocations
+  });
+  await prisma.$transaction(attachments.map((attachment) =>
+    prisma.attachment.update({
+      where: { id: attachment.id },
+      data: { originalName: attachmentNameWithOriginalExtension(baseName, attachment.originalName) }
+    })
+  ));
 }
 
 export async function deletePaymentAction(formData: FormData) {
