@@ -4,6 +4,7 @@ import { DropdownCategory, DropdownOption, ShipmentStatus } from "@prisma/client
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { SearchableCombobox } from "@/components/SearchableCombobox";
+import { FlexibleDateInput } from "@/components/FlexibleDateInput";
 import { createShipmentAction, updateShipmentAction } from "@/server/actions";
 
 type Options = Record<DropdownCategory, DropdownOption[]>;
@@ -36,6 +37,9 @@ type ShipmentFormValue = {
   emailSent: string | null;
   exportOwner: string | null;
   salesEmailRecipients: string | null;
+  suitabilityDate?: string | null;
+  shippingApprovalDate?: string | null;
+  desiredShipDate?: string | null;
   invNo: string | null;
   releaseDate: Date | string | null;
   etd: Date | string | null;
@@ -84,17 +88,15 @@ export function ShipmentForm({
       <input type="hidden" name="note" value={shipment?.note ?? ""} />
 
       <Box title="선적 의뢰란" columns={1}>
-        <FormRow>
+        <FormRow columns={3}>
           <Select label="수출국" name="exportCountry" value={exportCountry} onChange={setExportCountry} options={options.EXPORT_COUNTRY} />
           <BuyerSelect buyers={buyers} value={buyer} onChange={applyBuyer} />
+          <Select label="보관조건" name="storageCondition" defaultValue={shipment?.storageCondition} options={options.STORAGE_CONDITION} />
         </FormRow>
-        <FormRow>
+        <FormRow columns={3}>
           <Select label="운송" name="transport" defaultValue={shipment?.transport} options={options.TRANSPORT} />
           <Select label="인코텀즈" name="incoterms" defaultValue={shipment?.incoterms} options={options.INCOTERMS} />
-        </FormRow>
-        <FormRow>
           <Select label="목적항" name="destinationPort" defaultValue={shipment?.destinationPort} options={options.DESTINATION_PORT} />
-          <Select label="보관조건" name="storageCondition" defaultValue={shipment?.storageCondition} options={options.STORAGE_CONDITION} />
         </FormRow>
         <FormRow columns={3}>
           <Select label="결제조건" name="paymentTerm" defaultValue={shipment?.paymentTerm} options={options.PAYMENT_TERM} />
@@ -105,6 +107,11 @@ export function ShipmentForm({
           <ReadonlyInput label="영업담당자" name="salesOwner" value={salesOwner} placeholder="바이어 선택 시 자동 입력" />
           <ReadonlyInput label="수출담당자" name="exportOwner" value={exportOwner} placeholder="바이어 선택 시 자동 입력" />
           <ReadonlyInput label="영업메일수신자" name="salesEmailRecipients" value={salesEmailRecipients} placeholder="바이어 선택 시 자동 입력" />
+        </FormRow>
+        <FormRow columns={3}>
+          <FlexibleDateInput label="적합일" name="suitabilityDate" defaultValue={shipment?.suitabilityDate} />
+          <FlexibleDateInput label="출하승인일" name="shippingApprovalDate" defaultValue={shipment?.shippingApprovalDate} />
+          <FlexibleDateInput label="선적희망일" name="desiredShipDate" defaultValue={shipment?.desiredShipDate} />
         </FormRow>
         <TextArea label="영업담당자 의견" name="salesRequest" value={shipment?.salesRequest} />
       </Box>

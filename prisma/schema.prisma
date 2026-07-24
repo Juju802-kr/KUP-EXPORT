@@ -180,6 +180,9 @@ model ShipmentRequest {
   salesRequest          String?
   emailSent             String?
   note                  String?
+  suitabilityDate       String?
+  shippingApprovalDate  String?
+  desiredShipDate       String?
   releaseDate           DateTime?
   etd                   DateTime?
   eta                   DateTime?

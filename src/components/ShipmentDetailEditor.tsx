@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { DeleteButton } from "@/components/DeleteButton";
 import { AppSelect } from "@/components/AppSelect";
+import { FlexibleDateInput } from "@/components/FlexibleDateInput";
 import { SearchableCombobox } from "@/components/SearchableCombobox";
 import { createProductAction, deleteProductAction, deleteShipmentAction, sendProductCoaMailAction, sendShipmentQuoteMailAction, sendShipmentRequestMailAction, sendShipmentScheduleMailAction, updateProductAction, updateShipmentAction, updateShipmentKanbanStatusAction } from "@/server/actions";
 
@@ -72,6 +73,9 @@ type ShipmentValue = {
   salesRequest: string | null;
   note: string | null;
   emailSent: string | null;
+  suitabilityDate: string | null;
+  shippingApprovalDate: string | null;
+  desiredShipDate: string | null;
   invNo: string | null;
   releaseDate: string;
   etd: string;
@@ -229,17 +233,15 @@ export function ShipmentDetailEditor({
             </div>
 
             <Box title="선적 의뢰란" columns={1}>
-              <FormRow>
+              <FormRow columns={3}>
                 <ReadonlyBox label="수출국" value={shipment.exportCountry} />
                 <ReadonlyBox label="바이어" value={shipment.buyer} />
+                <SelectBox label="보관조건" name="storageCondition" value={shipment.storageCondition} options={options.storageCondition} />
               </FormRow>
-              <FormRow>
+              <FormRow columns={3}>
                 <SelectBox label="운송" name="transport" value={shipment.transport} options={options.transport} />
                 <SelectBox label="인코텀즈" name="incoterms" value={shipment.incoterms} options={options.incoterms} />
-              </FormRow>
-              <FormRow>
                 <SelectBox label="목적항" name="destinationPort" value={shipment.destinationPort} options={options.destinationPort} />
-                <SelectBox label="보관조건" name="storageCondition" value={shipment.storageCondition} options={options.storageCondition} />
               </FormRow>
               <FormRow columns={3}>
                 <SelectBox label="결제조건" name="paymentTerm" value={shipment.paymentTerm} options={options.paymentTerm} />
@@ -250,6 +252,11 @@ export function ShipmentDetailEditor({
                 <ReadonlyBox label="영업담당자" name="salesOwner" value={shipment.salesOwner} />
                 <ReadonlyBox label="수출담당자" name="exportOwner" value={shipment.exportOwner} />
                 <ReadonlyBox label="영업메일수신자" name="salesEmailRecipients" value={shipment.salesEmailRecipients} />
+              </FormRow>
+              <FormRow columns={3}>
+                <FlexibleDateInput label="적합일" name="suitabilityDate" defaultValue={shipment.suitabilityDate} />
+                <FlexibleDateInput label="출하승인일" name="shippingApprovalDate" defaultValue={shipment.shippingApprovalDate} />
+                <FlexibleDateInput label="선적희망일" name="desiredShipDate" defaultValue={shipment.desiredShipDate} />
               </FormRow>
               <TextBox label="영업담당자 의견" name="salesRequest" value={shipment.salesRequest} />
             </Box>
