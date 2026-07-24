@@ -19,56 +19,62 @@ select {
 }
 
 
-input.flexible-date-native[type="date"] {
+/* Match ETD/ETA native datetime-local calendar indicator size/placement */
+input.flexible-date-native[type="datetime-local"] {
   position: absolute !important;
-  right: 0.7rem !important;
-  top: 50% !important;
-  transform: translateY(-50%);
+  right: 0 !important;
+  top: 0 !important;
   z-index: 2;
-  width: 1.15rem !important;
-  height: 1.15rem !important;
+  width: 2.5rem !important;
+  height: 2.75rem !important; /* h-11 */
   min-height: 0 !important;
   margin: 0 !important;
-  padding: 0 !important;
+  padding: 0 0.75rem 0 0 !important;
   border: 0 !important;
   border-radius: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
   outline: none !important;
   color: transparent !important;
-  font-size: 0 !important;
-  line-height: 0 !important;
+  font-size: 0.875rem !important; /* text-sm, same as form inputs */
+  line-height: 2.75rem !important;
   cursor: pointer;
   color-scheme: light;
 }
 
-input.flexible-date-native[type="date"]:focus {
+input.flexible-date-native[type="datetime-local"]:focus {
   border: 0 !important;
   box-shadow: none !important;
   outline: none !important;
 }
 
-input.flexible-date-native[type="date"]::-webkit-datetime-edit,
-input.flexible-date-native[type="date"]::-webkit-datetime-edit-fields-wrapper,
-input.flexible-date-native[type="date"]::-webkit-datetime-edit-text,
-input.flexible-date-native[type="date"]::-webkit-datetime-edit-month-field,
-input.flexible-date-native[type="date"]::-webkit-datetime-edit-day-field,
-input.flexible-date-native[type="date"]::-webkit-datetime-edit-year-field,
-input.flexible-date-native[type="date"]::-webkit-inner-spin-button,
-input.flexible-date-native[type="date"]::-webkit-clear-button {
+input.flexible-date-native[type="datetime-local"]::-webkit-datetime-edit,
+input.flexible-date-native[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper,
+input.flexible-date-native[type="datetime-local"]::-webkit-datetime-edit-text,
+input.flexible-date-native[type="datetime-local"]::-webkit-datetime-edit-month-field,
+input.flexible-date-native[type="datetime-local"]::-webkit-datetime-edit-day-field,
+input.flexible-date-native[type="datetime-local"]::-webkit-datetime-edit-year-field,
+input.flexible-date-native[type="datetime-local"]::-webkit-datetime-edit-hour-field,
+input.flexible-date-native[type="datetime-local"]::-webkit-datetime-edit-minute-field,
+input.flexible-date-native[type="datetime-local"]::-webkit-datetime-edit-ampm-field,
+input.flexible-date-native[type="datetime-local"]::-webkit-inner-spin-button,
+input.flexible-date-native[type="datetime-local"]::-webkit-clear-button {
   display: none !important;
 }
 
-input.flexible-date-native[type="date"]::-webkit-calendar-picker-indicator {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+input.flexible-date-native[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  /* Keep browser-default glyph size (same as ETD/ETA) */
   margin: 0;
   padding: 0;
   cursor: pointer;
   opacity: 1;
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
 }
+
+
 
 
 select {

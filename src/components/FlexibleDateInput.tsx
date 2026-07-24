@@ -13,6 +13,7 @@ export function FlexibleDateInput({
 }) {
   const [value, setValue] = useState(defaultValue ?? "");
   const isoDate = /^\d{4}-\d{2}-\d{2}$/.test(value.trim()) ? value.trim() : "";
+  const pickerValue = isoDate ? `${isoDate}T00:00` : "";
 
   return (
     <label className="block space-y-1">
@@ -25,14 +26,15 @@ export function FlexibleDateInput({
           className="h-11 w-full pr-10"
           placeholder="직접 입력 또는 달력 선택"
         />
-        {/* Native browser calendar indicator — same glyph as 출고일 / ETD / ETA */}
+        {/* Same control/glyph size as ETD / ETA (datetime-local) */}
         <input
-          type="date"
+          type="datetime-local"
           aria-label={`${label} 달력 선택`}
           title="달력에서 선택"
-          value={isoDate}
+          value={pickerValue}
           onChange={(event) => {
-            if (event.target.value) setValue(event.target.value);
+            const next = event.target.value;
+            if (next) setValue(next.slice(0, 10));
           }}
           className="flexible-date-native"
         />
