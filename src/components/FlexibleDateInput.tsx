@@ -2,6 +2,27 @@
 
 import { useRef, useState } from "react";
 
+function CalendarIcon() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      width="16"
+      height="16"
+      aria-hidden="true"
+      className="text-slate-700"
+    >
+      <rect x="1.5" y="2.5" width="13" height="12" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M1.5 5.5h13" fill="none" stroke="currentColor" strokeWidth="1.2" />
+      <circle cx="5" cy="8.5" r="0.85" fill="currentColor" />
+      <circle cx="8" cy="8.5" r="0.85" fill="currentColor" />
+      <circle cx="11" cy="8.5" r="0.85" fill="currentColor" />
+      <circle cx="5" cy="11.5" r="0.85" fill="currentColor" />
+      <circle cx="8" cy="11.5" r="0.85" fill="currentColor" />
+      <circle cx="11" cy="11.5" r="0.85" fill="currentColor" />
+    </svg>
+  );
+}
+
 export function FlexibleDateInput({
   label,
   name,
@@ -37,17 +58,17 @@ export function FlexibleDateInput({
           name={name}
           value={value}
           onChange={(event) => setValue(event.target.value)}
-          className="h-11 w-full pr-11"
+          className="h-11 w-full pr-10"
           placeholder="직접 입력 또는 달력 선택"
         />
         <button
           type="button"
-          className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-lg leading-none text-slate-600 hover:text-slate-900"
+          className="absolute inset-y-0 right-0 flex w-10 items-center justify-center hover:opacity-70"
           aria-label={`${label} 달력 선택`}
           title="달력에서 선택"
           onClick={openCalendar}
         >
-          📅
+          <CalendarIcon />
         </button>
         <input
           ref={dateRef}
