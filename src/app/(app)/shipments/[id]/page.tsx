@@ -193,7 +193,9 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
               id: buyerMaster.id,
               buyerName: buyerMaster.buyerName,
               specialNote: buyerMaster.specialNote,
-              specialNoteUpdatedAt: buyerMaster.specialNoteUpdatedAt?.toISOString() ?? null
+              specialNoteUpdatedAt: buyerMaster.specialNoteUpdatedAt?.toISOString() ?? null,
+              vatNo: buyerMaster.vatNo,
+              eoriNo: buyerMaster.eoriNo
             }
           : null
       }

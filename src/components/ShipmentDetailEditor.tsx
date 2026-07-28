@@ -25,7 +25,14 @@ type ProductMaster = { id: string; name: string; costGroupCode: string | null; f
 type ExportProductName = { id: string; productName: string; englishName: string; productCode: string };
 type Attachment = { id: string; ownerId: string; originalName: string; path: string; mimeType: string | null };
 type LcRow = { id: string; lcNo: string | null; productionRequestNo: string | null; lcSd: string | null; buyer: string | null };
-type BuyerNote = { id: string; buyerName: string; specialNote: string | null; specialNoteUpdatedAt: string | null };
+type BuyerNote = {
+  id: string;
+  buyerName: string;
+  specialNote: string | null;
+  specialNoteUpdatedAt: string | null;
+  vatNo: string | null;
+  eoriNo: string | null;
+};
 type ProductRow = {
   id: string;
   productMasterId: string | null;
@@ -289,16 +296,25 @@ export function ShipmentDetailEditor({
                   </>
                 ) : null}
               </div>
-              <button
-                type="button"
-                className="h-10 rounded-md px-4 text-sm font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-                style={{ backgroundColor: "#651FFF" }}
-                onClick={() => setShowBuyerNote(true)}
-                disabled={!buyerNote}
-                title={buyerNote ? `${buyerNote.buyerName} 특이사항` : "바이어 마스터가 없습니다"}
-              >
-                바이어
-              </button>
+              <div className="flex items-end gap-2">
+                <button
+                  type="button"
+                  className="h-10 rounded-md bg-slate-950 px-4 text-sm font-semibold text-white hover:bg-black"
+                  onClick={() => window.open(`/shipment-summary/${shipment.id}`, "_blank", "noopener,noreferrer")}
+                >
+                  선적요약
+                </button>
+                <button
+                  type="button"
+                  className="h-10 rounded-md px-4 text-sm font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                  style={{ backgroundColor: "#651FFF" }}
+                  onClick={() => setShowBuyerNote(true)}
+                  disabled={!buyerNote}
+                  title={buyerNote ? `${buyerNote.buyerName} 특이사항` : "바이어 마스터가 없습니다"}
+                >
+                  바이어
+                </button>
+              </div>
             </div>
 
             <Box title="선적 관리란" columns={1}>
@@ -529,6 +545,16 @@ function BuyerSpecialNotePopup({
           <label className="mb-1 block text-sm font-medium text-slate-700">첨부파일</label>
           <input name="files" type="file" multiple className="w-full rounded-md border border-slate-300 bg-white px-3 py-2" />
           <AttachmentLinks files={files} />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block space-y-1">
+            <span className="block text-sm font-medium text-slate-700">VAT번호</span>
+            <input name="vatNo" defaultValue={buyerNote.vatNo ?? ""} className="h-11 w-full" />
+          </label>
+          <label className="block space-y-1">
+            <span className="block text-sm font-medium text-slate-700">EORI번호</span>
+            <input name="eoriNo" defaultValue={buyerNote.eoriNo ?? ""} className="h-11 w-full" />
+          </label>
         </div>
         <div className="flex justify-end gap-2">
           <button type="button" className="btn px-5" onClick={onClose}>닫기</button>

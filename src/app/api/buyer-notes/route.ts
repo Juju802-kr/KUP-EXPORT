@@ -17,6 +17,8 @@ export async function POST(request: Request) {
     data: {
       specialNote: formString(formData, "specialNote"),
       specialNoteUpdatedAt: new Date(),
+      vatNo: formString(formData, "vatNo"),
+      eoriNo: formString(formData, "eoriNo"),
       updatedById: user.id
     }
   });

@@ -1397,12 +1397,67 @@ export async function updateBuyerSpecialNoteAction(formData: FormData) {
     data: {
       specialNote: formString(formData, "specialNote"),
       specialNoteUpdatedAt: new Date(),
+      vatNo: formString(formData, "vatNo"),
+      eoriNo: formString(formData, "eoriNo"),
       updatedById: user.id
     }
   });
   await saveAttachments(formData.getAll("files").filter((file): file is File => file instanceof File), "BUYER_MASTER", buyerId, user.id);
   revalidatePath(`/shipments/${shipmentId}`);
   redirect(`/shipments/${shipmentId}?success=${encodeURIComponent("바이어 특이사항이 저장되었습니다.")}`);
+}
+
+export async function saveShipmentSummaryAction(formData: FormData) {
+  const user = await requireUser();
+  const id = formString(formData, "id");
+  if (!id) return { ok: false as const, message: "선적의뢰를 찾을 수 없습니다." };
+
+  await prisma.shipmentRequest.update({
+    where: { id },
+    data: {
+      summaryDataLogger: formString(formData, "summaryDataLogger"),
+      summaryDataLoggerDetail: formString(formData, "summaryDataLoggerDetail"),
+      summaryShippingLabelMethod: formString(formData, "summaryShippingLabelMethod"),
+      summarySpecialNotes: formString(formData, "summarySpecialNotes"),
+      updatedById: user.id
+    }
+  });
+  revalidatePath(`/shipment-summary/${id}`);
+  revalidatePath(`/shipments/${id}`);
+  return { ok: true as const };
+}
+
+export async function createShipmentSummaryDefaultNoteAction(formData: FormData) {
+  const user = await requireUser();
+  const content = formString(formData, "content").trim();
+  const shipmentId = formString(formData, "shipmentId");
+  if (!content) return { ok: false as const, message: "기본 특이사항 내용을 입력해주세요." };
+
+  const last = await prisma.shipmentSummaryDefaultNote.findFirst({ orderBy: { sortOrder: "desc" } });
+  const note = await prisma.shipmentSummaryDefaultNote.create({
+    data: {
+      content,
+      sortOrder: (last?.sortOrder ?? 0) + 1,
+      createdById: user.id,
+      updatedById: user.id
+    }
+  });
+  if (shipmentId) revalidatePath(`/shipment-summary/${shipmentId}`);
+  return {
+    ok: true as const,
+    note: { id: note.id, content: note.content, sortOrder: note.sortOrder }
+  };
+}
+
+export async function deleteShipmentSummaryDefaultNoteAction(formData: FormData) {
+  await requireUser();
+  const id = formString(formData, "id");
+  const shipmentId = formString(formData, "shipmentId");
+  if (!id) return { ok: false as const, message: "삭제할 항목을 선택해주세요." };
+
+  await prisma.shipmentSummaryDefaultNote.delete({ where: { id } });
+  if (shipmentId) revalidatePath(`/shipment-summary/${shipmentId}`);
+  return { ok: true as const };
 }
 
 const noticeMailTeams: Team[] = [Team.OVERSEAS_MARKETING, Team.OVERSEAS_SALES, Team.OVERSEAS_SALES_SUPPORT];

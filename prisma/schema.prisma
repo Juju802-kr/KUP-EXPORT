@@ -136,6 +136,8 @@ model BuyerMaster {
   contactPerson         String?
   specialNote           String?
   specialNoteUpdatedAt  DateTime?
+  vatNo                 String?
+  eoriNo                String?
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
   createdById           String?
@@ -203,6 +205,10 @@ model ShipmentRequest {
   usePt                 Boolean        @default(false)
   ptQty                 Int            @default(0)
   ptSpec                String?
+  summaryDataLogger           String?
+  summaryDataLoggerDetail     String?
+  summaryShippingLabelMethod  String?
+  summarySpecialNotes         String?
   sortOrder             Int            @default(0)
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt
@@ -223,6 +229,18 @@ model ShipmentRequest {
   @@index([etd])
   @@index([eta])
   @@index([sortOrder, updatedAt])
+}
+
+model ShipmentSummaryDefaultNote {
+  id          String   @id @default(cuid())
+  content     String
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  @@index([sortOrder])
 }
 
 model ShipmentProduct {

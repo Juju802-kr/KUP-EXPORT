@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "BuyerMaster" ADD COLUMN IF NOT EXISTS "vatNo" TEXT;
+ALTER TABLE "BuyerMaster" ADD COLUMN IF NOT EXISTS "eoriNo" TEXT;
