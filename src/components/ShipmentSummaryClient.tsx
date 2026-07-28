@@ -59,12 +59,56 @@ function cartonTotal(product: SummaryProduct) {
 
 function productQtyText(product: SummaryProduct) {
   const total = Number(product.bxQtyTotal || 0);
-  if (total) return `${total.toLocaleString("ko-KR")}`;
-  const paid = Number(product.bxQtyPaid || 0);
-  const foc = Number(product.bxQtyFoc || 0);
-  if (!paid && !foc) return "";
-  return foc ? `${paid.toLocaleString("ko-KR")}+FOC${foc.toLocaleString("ko-KR")}` : paid.toLocaleString("ko-KR");
+  let amount = "";
+  if (total) amount = total.toLocaleString("ko-KR");
+  else {
+    const paid = Number(product.bxQtyPaid || 0);
+    const foc = Number(product.bxQtyFoc || 0);
+    if (!paid && !foc) return "";
+    amount = foc ? `${paid.toLocaleString("ko-KR")}+FOC${foc.toLocaleString("ko-KR")}` : paid.toLocaleString("ko-KR");
+  }
+  return `${amount} Box`;
 }
+
+function cartonQtyText(product: SummaryProduct) {
+  const total = cartonTotal(product);
+  return total ? `${total.toLocaleString("ko-KR")} CT` : "";
+}
+
+function palletQtyText(usePt: boolean, ptQty: number) {
+  if (!usePt || !ptQty) return "";
+  return `${Number(ptQty).toLocaleString("ko-KR")} PT`;
+}
+
+type StorageKind = "일반" | "냉장" | "풀냉장" | "";
+
+function parseStorageCondition(raw?: string | null): { kind: StorageKind; dataLogger: "O" | "X" | "" } {
+  const text = (raw ?? "").replace(/\s+/g, "");
+  if (!text) return { kind: "", dataLogger: "" };
+
+  let kind: StorageKind = "";
+  if (text.includes("풀냉장")) kind = "풀냉장";
+  else if (text.includes("냉장")) kind = "냉장";
+  else if (text.includes("일반")) kind = "일반";
+
+  if (kind === "일반") return { kind, dataLogger: "X" };
+  if (/데이터로거\s*O|\(O\)/i.test(text)) {
+    return { kind: kind || "냉장", dataLogger: "O" };
+  }
+  if (kind === "냉장" || kind === "풀냉장" || /데이터로거\s*X|\(X\)/i.test(text)) {
+    return { kind, dataLogger: "X" };
+  }
+  return { kind, dataLogger: "" };
+}
+
+function storageBadgeClass(kind: StorageKind) {
+  if (kind === "일반") return "border-slate-300 bg-slate-100 text-slate-700";
+  if (kind === "냉장") return "border-sky-300 bg-sky-100 text-sky-800";
+  if (kind === "풀냉장") return "border-violet-300 bg-violet-100 text-violet-800";
+  return "border-slate-200 bg-slate-50 text-slate-600";
+}
+
+const SHIPPING_LABEL_OPTIONS = ["ERP 출력", "수출담당자 전달"] as const;
 
 export function ShipmentSummaryClient({
   shipment,
@@ -73,11 +117,16 @@ export function ShipmentSummaryClient({
   shipment: ShipmentSummaryData;
   defaultNotes: SummaryDefaultNote[];
 }) {
-  const [dataLogger, setDataLogger] = useState(shipment.summaryDataLogger ?? "");
+  const storage = useMemo(() => parseStorageCondition(shipment.storageCondition), [shipment.storageCondition]);
+  const dataLogger = storage.dataLogger;
   const [dataLoggerDetail, setDataLoggerDetail] = useState(shipment.summaryDataLoggerDetail ?? "");
-  const [shippingLabelMethod, setShippingLabelMethod] = useState(
-    shipment.summaryShippingLabelMethod ?? "ERP출력 / 수출담당자 전달"
-  );
+  const [shippingLabelMethod, setShippingLabelMethod] = useState(() => {
+    const saved = shipment.summaryShippingLabelMethod?.trim() ?? "";
+    if ((SHIPPING_LABEL_OPTIONS as readonly string[]).includes(saved)) return saved;
+    if (saved.includes("수출담당자")) return "수출담당자 전달";
+    if (saved.includes("ERP")) return "ERP 출력";
+    return "ERP 출력";
+  });
   const [specialNotes, setSpecialNotes] = useState(shipment.summarySpecialNotes ?? "");
   const [defaultNotes, setDefaultNotes] = useState(initialDefaultNotes);
   const [newDefaultNote, setNewDefaultNote] = useState("");
@@ -94,7 +143,7 @@ export function ShipmentSummaryClient({
     return labels.join("/") || "";
   }, [shipment.products]);
 
-  const palletQty = shipment.usePt && shipment.ptQty ? String(shipment.ptQty) : "";
+  const palletQty = palletQtyText(shipment.usePt, shipment.ptQty);
 
   function appendDefaultNote(content: string) {
     const line = content.trim();
@@ -188,8 +237,13 @@ export function ShipmentSummaryClient({
 
       <Section title="2. 포장 정보" english="PACKAGING INFORMATION">
         <Grid>
-          <Field label="보관" value={shipment.storageCondition || "-"} badge />
-          <EditableField label="데이터로거" value={dataLogger} onChange={setDataLogger} placeholder="O/X" />
+          <Field
+            label="보관"
+            value={storage.kind || "-"}
+            badge
+            badgeClassName={storageBadgeClass(storage.kind)}
+          />
+          <Field label="데이터로거" value={dataLogger || "-"} />
         </Grid>
         <div className="mt-0 border-t border-slate-200">
           <EditableField
@@ -220,25 +274,19 @@ export function ShipmentSummaryClient({
                   <Field label="제품수량" value={productQtyText(product)} />
                 </Grid>
                 <Grid>
-                  <Field label="카톤수량" value={cartonTotal(product) ? cartonTotal(product).toLocaleString("ko-KR") : ""} />
-                  <div className="hidden sm:block" />
+                  <Field label="카톤수량" value={cartonQtyText(product)} />
+                  <Field label="팔레트수량" value={palletQty} />
                 </Grid>
               </div>
             ))}
             <div className="border-t-2 border-slate-300">
-              <Grid>
-                <Field label="팔레트수량" value={palletQty} />
-                <div className="hidden sm:block" />
-              </Grid>
-              <div className="border-t border-slate-200">
-                <EditableField
-                  label="쉬핑라벨방식"
-                  value={shippingLabelMethod}
-                  onChange={setShippingLabelMethod}
-                  placeholder="ERP출력 / 수출담당자 전달"
-                  wide
-                />
-              </div>
+              <SelectField
+                label="쉬핑라벨방식"
+                value={shippingLabelMethod}
+                onChange={setShippingLabelMethod}
+                options={[...SHIPPING_LABEL_OPTIONS]}
+                wide
+              />
             </div>
           </>
         ) : (
@@ -246,7 +294,7 @@ export function ShipmentSummaryClient({
         )}
       </Section>
 
-      <Section title="3. 거래처 정보" english="CLIENT & BUYER INFO">
+      <Section title="4. 거래처 정보" english="CLIENT & BUYER INFO">
         <Grid>
           <Field label="국가" value={shipment.exportCountry || ""} />
           <Field label="거래처명" value={shipment.buyer || ""} />
@@ -357,19 +405,21 @@ function Field({
   label,
   value,
   wide = false,
-  badge = false
+  badge = false,
+  badgeClassName = "border-[#90caf9] bg-[#e3f2fd] text-[#1565c0]"
 }: {
   label: string;
   value: string;
   wide?: boolean;
   badge?: boolean;
+  badgeClassName?: string;
 }) {
   return (
     <div className={`grid grid-cols-[140px_1fr] border-slate-200 sm:border-r sm:last:border-r-0 ${wide ? "sm:col-span-2" : ""}`}>
       <div className="bg-[#e8eaf6] px-3 py-2.5 text-xs font-semibold text-slate-700">{label}</div>
       <div className="px-3 py-2.5 text-sm font-medium text-slate-900">
         {badge && value && value !== "-" ? (
-          <span className="inline-flex rounded-full border border-[#90caf9] bg-[#e3f2fd] px-2.5 py-0.5 text-xs font-semibold text-[#1565c0]">
+          <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold ${badgeClassName}`}>
             {value}
           </span>
         ) : (
@@ -403,6 +453,44 @@ function EditableField({
           placeholder={placeholder}
           className="h-9 w-full rounded border border-transparent bg-transparent px-1 text-sm font-medium text-slate-900 outline-none hover:border-slate-200 focus:border-blue-400 focus:bg-white print:border-0"
         />
+      </div>
+    </div>
+  );
+}
+
+function SelectField({
+  label,
+  value,
+  onChange,
+  options,
+  wide = false
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: string[];
+  wide?: boolean;
+}) {
+  return (
+    <div className={`grid grid-cols-[140px_1fr] border-slate-200 ${wide ? "sm:col-span-2" : ""}`}>
+      <div className="bg-[#e8eaf6] px-3 py-2.5 text-xs font-semibold text-slate-700">{label}</div>
+      <div className="px-2 py-1.5">
+        <div className="no-print flex flex-wrap gap-4 px-1 py-1">
+          {options.map((option) => (
+            <label key={option} className="inline-flex items-center gap-2 text-sm font-medium text-slate-800">
+              <input
+                type="radio"
+                name="shippingLabelMethod"
+                value={option}
+                checked={value === option}
+                onChange={() => onChange(option)}
+                className="h-4 w-4"
+              />
+              {option}
+            </label>
+          ))}
+        </div>
+        <p className="hidden px-1 text-sm font-medium text-slate-900 print:block">{value || "-"}</p>
       </div>
     </div>
   );
