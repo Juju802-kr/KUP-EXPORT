@@ -2,7 +2,8 @@ import {
   buildDestinationRegistry,
   pickDestinationByCountry,
   pickDestinationBySimilarity,
-  type DestinationRegistryEntry
+  type DestinationRegistryEntry,
+  type RegisteredDestination
 } from "@/lib/destination-registry";
 
 const INCOTERM_PATTERN = /\b(EXW|FCA|FOB|CFR|CIF|CPT|CIP|DAP|DPU|DDP)\b/i;
@@ -22,7 +23,7 @@ const COUNTRY_ALIASES: Record<string, string[]> = {
 export type PiDestinationContext = {
   exportCountry?: string;
   transport?: string;
-  registeredDestinations?: string[];
+  registeredDestinations?: RegisteredDestination[];
 };
 
 function normalizeLabel(value: string) {

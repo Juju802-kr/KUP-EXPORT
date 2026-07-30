@@ -9,6 +9,8 @@ import { SalesRecipientsPicker } from "@/components/SalesRecipientsPicker";
 import { SearchableCombobox } from "@/components/SearchableCombobox";
 import { destinationKindLabel, resolveDestinationMetadata } from "@/lib/destination-registry";
 import { bulkUpdateBuyerMastersByCountryAction, changePasswordAction, deleteAccountAction, deleteGenericAction, reorderDropdownAction, upsertBuyerMasterAction, upsertDropdownAction, upsertExportProductNameAction, upsertProductMasterAction } from "@/server/actions";
+import { OverseasSalesRosterEditor } from "@/components/OverseasSalesRosterEditor";
+import { compareOverseasSalesMembers } from "@/lib/overseas-sales-roster";
 
 type UserRow = { id: string; name: string; email: string; team: Team; createdAt: string };
 type ProductRow = { id: string; name: string; factory: Factory };
@@ -21,6 +23,8 @@ type DropdownRow = {
   sortOrder: number;
   destinationCountry?: string | null;
   destinationKind?: string | null;
+  partNo?: number | null;
+  rankNo?: number | null;
 };
 type ExportProductNameRow = { id: string; exportCountry: string; productName: string; englishName: string; productCode: string };
 type DropdownSection = DropdownCategory | "PRODUCT_NAME";
@@ -39,7 +43,8 @@ const dropdownLabels: Record<DropdownCategory, string> = {
   BANK: "\uC740\uD589",
   CURRENCY: "통화",
   FORWARDER: "포워딩",
-  DEPARTURE_PORT: "출발항"
+  DEPARTURE_PORT: "출발항",
+  OVERSEAS_SALES_TEAM: "해외영업팀"
 };
 const dropdownSectionLabel = (category: DropdownSection) => category === "PRODUCT_NAME" ? "제품명" : dropdownLabels[category];
 
@@ -90,8 +95,18 @@ export function AdminClient({
   const [visibleBuyerCount, setVisibleBuyerCount] = useState(INITIAL_VISIBLE_COUNT);
   const [visibleDropdownCount, setVisibleDropdownCount] = useState(INITIAL_VISIBLE_COUNT);
 
-  const visibleDropdowns = category === "PRODUCT_NAME" ? [] : orderedDropdowns.filter((item) => item.category === category).sort((a, b) => a.sortOrder - b.sortOrder);
+  const visibleDropdowns = category === "PRODUCT_NAME"
+    ? []
+    : orderedDropdowns
+        .filter((item) => item.category === category)
+        .sort((a, b) => {
+          if (category === DropdownCategory.OVERSEAS_SALES_TEAM) {
+            return (a.partNo ?? 9999) - (b.partNo ?? 9999) || (a.rankNo ?? 9999) - (b.rankNo ?? 9999) || a.sortOrder - b.sortOrder;
+          }
+          return a.sortOrder - b.sortOrder;
+        });
   const teamUsers = users.filter((user) => user.team === team);
+  const overseasSalesUsers = users.filter((user) => user.team === Team.OVERSEAS_SALES);
   const countries = orderedDropdowns.filter((item) => item.category === DropdownCategory.EXPORT_COUNTRY).sort((a, b) => a.sortOrder - b.sortOrder).map((item) => item.label);
   const filteredProducts = products.filter((product) => {
     const keyword = productSearch.trim().toLowerCase();
@@ -279,6 +294,8 @@ export function AdminClient({
               </div>
               <button className="btn-primary h-11">추가</button>
             </form>
+          ) : category === DropdownCategory.OVERSEAS_SALES_TEAM ? (
+            <p className="flex-1 text-sm text-slate-500">이미 가입된 해외영업팀 구성원의 파트·순위만 수정합니다.</p>
           ) : (
             <form action={upsertDropdownAction} className="flex items-end gap-3">
               <input type="hidden" name="category" value={category} />
@@ -292,35 +309,58 @@ export function AdminClient({
             </form>
           )}
         </div>
-        <SearchBox value={dropdownSearch} onChange={setDropdownSearch} placeholder={`${dropdownSectionLabel(category)} 검색`} />
-        {category === DropdownCategory.DESTINATION_PORT ? (
-          <div className="mt-3 grid grid-cols-[minmax(0,1fr)_120px_80px_120px] gap-3 px-2 text-xs font-medium text-slate-500">
-            <span>목적항명</span>
-            <span>수출국</span>
-            <span>구분</span>
-            <span className="text-right">관리</span>
-          </div>
-        ) : null}
-        <div className="mt-4 divide-y divide-slate-100">
-          {category === "PRODUCT_NAME"
-            ? displayedProductNames.map((item) => <EditableExportProductName key={item.id} item={item} countries={countries} products={products} />)
-            : displayedDropdowns.map((item) => (
-                <EditableDropdown
-                  key={item.id}
-                  item={item}
-                  countries={countries}
-                  onMove={moveDropdown}
-                  onDragStart={setDraggingId}
-                  onDrop={dropDropdown}
-                />
-              ))}
-          {(category === "PRODUCT_NAME" ? filteredProductNames.length : filteredDropdowns.length) === 0 ? <p className="py-3 text-sm text-slate-500">검색 결과가 없습니다.</p> : null}
-        </div>
-        <LoadMoreButton
-          shown={category === "PRODUCT_NAME" ? displayedProductNames.length : displayedDropdowns.length}
-          total={category === "PRODUCT_NAME" ? filteredProductNames.length : filteredDropdowns.length}
-          onClick={() => setVisibleDropdownCount((current) => current + LOAD_MORE_COUNT)}
-        />
+        {category === DropdownCategory.OVERSEAS_SALES_TEAM ? (
+          <>
+            <SearchBox value={dropdownSearch} onChange={setDropdownSearch} placeholder="해외영업팀 이름 검색" />
+            <OverseasSalesRosterEditor
+              search={dropdownSearch}
+              rows={[...orderedDropdowns]
+                .filter((item) => item.category === DropdownCategory.OVERSEAS_SALES_TEAM)
+                .sort(compareOverseasSalesMembers)
+                .map((item) => ({
+                  id: item.id,
+                  label: item.label,
+                  partNo: item.partNo ?? null,
+                  rankNo: item.rankNo ?? null
+                }))}
+            />
+          </>
+        ) : (
+          <>
+            <SearchBox value={dropdownSearch} onChange={setDropdownSearch} placeholder={`${dropdownSectionLabel(category)} 검색`} />
+            {category === DropdownCategory.DESTINATION_PORT ? (
+              <div className="mt-3 grid grid-cols-[minmax(0,1fr)_120px_80px_120px] gap-3 px-2 text-xs font-medium text-slate-500">
+                <span>목적항명</span>
+                <span>수출국</span>
+                <span>구분</span>
+                <span className="text-right">관리</span>
+              </div>
+            ) : null}
+            <div className="mt-4 divide-y divide-slate-100">
+              {category === "PRODUCT_NAME"
+                ? displayedProductNames.map((item) => <EditableExportProductName key={item.id} item={item} countries={countries} products={products} />)
+                : displayedDropdowns.map((item) => (
+                    <EditableDropdown
+                      key={item.id}
+                      item={item}
+                      countries={countries}
+                      overseasSalesUsers={overseasSalesUsers}
+                      onMove={moveDropdown}
+                      onDragStart={setDraggingId}
+                      onDrop={dropDropdown}
+                    />
+                  ))}
+              {(category === "PRODUCT_NAME" ? filteredProductNames.length : filteredDropdowns.length) === 0 ? (
+                <p className="py-3 text-sm text-slate-500">검색 결과가 없습니다.</p>
+              ) : null}
+            </div>
+            <LoadMoreButton
+              shown={category === "PRODUCT_NAME" ? displayedProductNames.length : displayedDropdowns.length}
+              total={category === "PRODUCT_NAME" ? filteredProductNames.length : filteredDropdowns.length}
+              onClick={() => setVisibleDropdownCount((current) => current + LOAD_MORE_COUNT)}
+            />
+          </>
+        )}
       </section>
 
       <section className="panel p-5">
@@ -486,15 +526,47 @@ function EditableBuyer({ buyer, salesOwners, exportOwners, salesMailUsers, count
   return <ReadRow cols={[buyer.exportCountry, buyer.buyerName, buyer.defaultCurrency ?? "USD", `영업: ${buyer.salesOwner ?? "-"}`, `수출: ${buyer.exportOwner ?? "-"}`, `영업메일: ${buyer.salesEmailRecipients ?? "-"}`]} model="buyer" id={buyer.id} onEdit={() => setEditing(true)} />;
 }
 
+function SuffixedNumberInput({
+  name,
+  suffix,
+  defaultValue,
+  min = 1,
+  required = false
+}: {
+  name: string;
+  suffix: string;
+  defaultValue?: number | null;
+  min?: number;
+  required?: boolean;
+}) {
+  return (
+    <div className="relative">
+      <input
+        name={name}
+        type="number"
+        min={min}
+        step={1}
+        required={required}
+        defaultValue={defaultValue ?? undefined}
+        className="h-11 w-full pr-12"
+        placeholder="0"
+      />
+      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm font-medium text-slate-500">{suffix}</span>
+    </div>
+  );
+}
+
 function EditableDropdown({
   item,
   countries,
+  overseasSalesUsers,
   onMove,
   onDragStart,
   onDrop
 }: {
   item: DropdownRow;
   countries: string[];
+  overseasSalesUsers: UserRow[];
   onMove: (id: string, direction: -1 | 1) => void;
   onDragStart: (id: string) => void;
   onDrop: (id: string) => void;
@@ -512,6 +584,8 @@ function EditableDropdown({
         className={`grid gap-3 py-2 text-sm ${
           item.category === DropdownCategory.DESTINATION_PORT
             ? "grid-cols-[160px_120px_minmax(280px,1fr)_auto]"
+            : item.category === DropdownCategory.OVERSEAS_SALES_TEAM
+              ? "grid-cols-[minmax(160px,1fr)_110px_110px_auto]"
             : item.category === DropdownCategory.FORWARDER
               ? "grid-cols-[1fr_220px_auto]"
               : "grid-cols-[1fr_auto]"
@@ -530,7 +604,20 @@ function EditableDropdown({
             <DestinationKindSelect defaultValue={item.destinationKind} />
           </>
         ) : null}
-        <input name="label" defaultValue={item.label} placeholder={item.category === DropdownCategory.FORWARDER ? "포워딩사" : undefined} required />
+        {item.category === DropdownCategory.OVERSEAS_SALES_TEAM ? (
+          <>
+            <AppSelect
+              name="label"
+              required
+              defaultValue={item.label}
+              options={overseasSalesUsers.map((user) => ({ value: user.name, label: user.name }))}
+            />
+            <SuffixedNumberInput name="partNo" suffix="파트" defaultValue={item.partNo} min={1} required />
+            <SuffixedNumberInput name="rankNo" suffix="순위" defaultValue={item.rankNo} min={1} required />
+          </>
+        ) : (
+          <input name="label" defaultValue={item.label} placeholder={item.category === DropdownCategory.FORWARDER ? "포워딩사" : undefined} required />
+        )}
         {item.category === DropdownCategory.FORWARDER ? <ForwarderValueFields defaultValue={item.value === item.label ? "" : item.value} compact /> : null}
         <div className="flex gap-2">
           <button className="btn-primary">저장</button>
@@ -542,17 +629,25 @@ function EditableDropdown({
   return (
     <div
       className={`flex cursor-grab items-center justify-between gap-3 py-2 text-sm ${
-        item.category === DropdownCategory.DESTINATION_PORT ? "grid grid-cols-[minmax(0,1fr)_120px_80px_120px] items-center gap-3" : ""
+        item.category === DropdownCategory.DESTINATION_PORT
+          ? "grid grid-cols-[minmax(0,1fr)_120px_80px_120px] items-center gap-3"
+          : item.category === DropdownCategory.OVERSEAS_SALES_TEAM
+            ? "grid grid-cols-[minmax(0,1fr)_90px_90px_120px] items-center gap-3"
+            : ""
       }`}
-      draggable
+      draggable={item.category !== DropdownCategory.OVERSEAS_SALES_TEAM}
       onDragStart={() => onDragStart(item.id)}
       onDragOver={(event) => event.preventDefault()}
       onDrop={() => onDrop(item.id)}
     >
       <div className="flex min-w-0 items-center gap-2">
-        <GripVertical size={16} className="shrink-0 text-slate-400" />
-        <button className="btn shrink-0 px-2 py-1" type="button" onClick={() => onMove(item.id, -1)}>위</button>
-        <button className="btn shrink-0 px-2 py-1" type="button" onClick={() => onMove(item.id, 1)}>아래</button>
+        {item.category === DropdownCategory.OVERSEAS_SALES_TEAM ? null : (
+          <>
+            <GripVertical size={16} className="shrink-0 text-slate-400" />
+            <button className="btn shrink-0 px-2 py-1" type="button" onClick={() => onMove(item.id, -1)}>위</button>
+            <button className="btn shrink-0 px-2 py-1" type="button" onClick={() => onMove(item.id, 1)}>아래</button>
+          </>
+        )}
         <span className="truncate">{item.label}</span>
         {item.category === DropdownCategory.FORWARDER && item.value !== item.label ? <span className="text-slate-500">{item.value}</span> : null}
       </div>
@@ -566,7 +661,19 @@ function EditableDropdown({
           </span>
         </>
       ) : null}
-      <div className={item.category === DropdownCategory.DESTINATION_PORT ? "justify-self-end" : "ml-auto"}>
+      {item.category === DropdownCategory.OVERSEAS_SALES_TEAM ? (
+        <>
+          <span className="text-slate-700">{item.partNo ? `${item.partNo}파트` : "-"}</span>
+          <span className="text-slate-700">{item.rankNo ? `${item.rankNo}순위` : "-"}</span>
+        </>
+      ) : null}
+      <div
+        className={
+          item.category === DropdownCategory.DESTINATION_PORT || item.category === DropdownCategory.OVERSEAS_SALES_TEAM
+            ? "justify-self-end"
+            : "ml-auto"
+        }
+      >
         <RowActions id={item.id} model="dropdown" onEdit={() => setEditing(true)} />
       </div>
     </div>

@@ -6,6 +6,16 @@ export type RegisteredDestination = {
   kind?: DestinationKind | null;
 };
 
+export function dropdownOptionsToRegisteredDestinations(
+  options: Array<{ label: string; destinationCountry?: string | null; destinationKind?: string | null }>
+): RegisteredDestination[] {
+  return options.map((option) => ({
+    label: option.label,
+    country: option.destinationCountry,
+    kind: option.destinationKind === "air" || option.destinationKind === "sea" ? option.destinationKind : null
+  }));
+}
+
 export type DestinationRegistryEntry = {
   label: string;
   country: string;

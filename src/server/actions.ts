@@ -1,6 +1,6 @@
 "use server";
 
-import { DropdownCategory, Factory, NoticeType, PaymentLcKind, ShipmentStatus, Team } from "@prisma/client";
+import { DropdownCategory, Factory, NoticeType, OrderAlertDismissType, PaymentLcKind, ShipmentStatus, Team } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
@@ -12,6 +12,24 @@ import {
   attachmentNameWithOriginalExtension,
   paymentTtAttachmentBaseName
 } from "@/lib/payment-attachment-name";
+import { orderMatchesAlert } from "@/lib/order-alert-matching";
+import {
+  cancelOrderAlertRecord,
+  createOrderAlertDismissalRecord,
+  createOrderAlertRecord,
+  findActiveOrderAlert,
+  listOrderAlertsForMatching,
+  orderAlertNotReadyMessage,
+  updateOrderAlertRecord
+} from "@/lib/order-alert-db";
+import {
+  buildOrderAlertTargets,
+  canonicalProductName,
+  ownerCountriesFromBuyers
+} from "@/lib/order-alert-owner";
+import { ledgerPaymentLinesOnly, isBlankOrderEntry } from "@/lib/order-board-linking";
+import { reassignOrderManagementOwner } from "@/lib/order-ownership-reassign";
+import { findRegisteredBuyer } from "@/lib/order-pi-import";
 import { prisma } from "@/lib/prisma";
 import { lcDepositStatusAfterLcSd } from "@/lib/shipment-lc-deposit";
 import { saveAttachments, deleteAttachment } from "@/lib/upload";
@@ -19,6 +37,32 @@ import { emailSchema, formDate, formNumber, formString, formUploadFiles } from "
 
 function fail(path: string, message: string): never {
   redirect(withMessage(path, "error", message));
+}
+
+function assertOrderBoardOwner(userName: string, owner: string, path = "/orders") {
+  if (owner.trim() !== userName.trim()) {
+    fail(path, "담당자 본인만 수정할 수 있습니다.");
+  }
+}
+
+async function assertCanEditOrderBoard(userName: string, owner: string, path = "/orders") {
+  if (owner.trim() === userName.trim()) return;
+  const {
+    OVERSEAS_SALES_ALL_OWNER,
+    isOverseasSalesAllOwner,
+    isOverseasSalesLeader,
+    overseasSalesMemberNames
+  } = await import("@/lib/overseas-sales-roster");
+  const roster = await prisma.dropdownOption.findMany({
+    where: { category: DropdownCategory.OVERSEAS_SALES_TEAM },
+    select: { label: true, partNo: true, rankNo: true, sortOrder: true }
+  });
+  if (!isOverseasSalesLeader(userName, roster)) {
+    fail(path, "담당자 본인만 수정할 수 있습니다.");
+  }
+  if (isOverseasSalesAllOwner(owner) || owner.trim() === OVERSEAS_SALES_ALL_OWNER) return;
+  if (overseasSalesMemberNames(roster).includes(owner.trim())) return;
+  fail(path, "담당자 본인만 수정할 수 있습니다.");
 }
 
 function succeed(path: string, message: string): never {
@@ -103,6 +147,32 @@ export async function registerAction(formData: FormData) {
   const exists = await prisma.user.findUnique({ where: { email } });
   if (exists) fail("/register", "이미 가입된 이메일입니다.");
   const user = await prisma.user.create({ data: { team, name, email, passwordHash: await hashPassword(password) } });
+
+  if (team === Team.OVERSEAS_SALES) {
+    const { OVERSEAS_SALES_PROBATION_PART, overseasSalesSortOrder } = await import("@/lib/overseas-sales-roster");
+    const probationCount = await prisma.dropdownOption.count({
+      where: { category: DropdownCategory.OVERSEAS_SALES_TEAM, partNo: OVERSEAS_SALES_PROBATION_PART }
+    });
+    const rankNo = probationCount + 1;
+    await prisma.dropdownOption.upsert({
+      where: { category_label: { category: DropdownCategory.OVERSEAS_SALES_TEAM, label: name } },
+      update: {
+        partNo: OVERSEAS_SALES_PROBATION_PART,
+        rankNo,
+        sortOrder: overseasSalesSortOrder(OVERSEAS_SALES_PROBATION_PART, rankNo),
+        value: name
+      },
+      create: {
+        category: DropdownCategory.OVERSEAS_SALES_TEAM,
+        label: name,
+        value: name,
+        partNo: OVERSEAS_SALES_PROBATION_PART,
+        rankNo,
+        sortOrder: overseasSalesSortOrder(OVERSEAS_SALES_PROBATION_PART, rankNo)
+      }
+    });
+  }
+
   await createSession(user);
   redirect("/shipments");
 }
@@ -176,15 +246,658 @@ async function nextShipmentSortOrder(salesOwner: string) {
 export async function createShipmentAction(formData: FormData) {
   const user = await requireUser();
   const buyer = formString(formData, "buyer");
-  const salesOwner = formString(formData, "salesOwner");
-  if (!salesOwner) fail("/shipments/new", "영업담당자를 선택해주세요.");
-  if (!buyer) fail("/shipments/new", "바이어는 필수입니다.");
-  const shipment = await prisma.shipmentRequest.create({
-    data: { ...readShipmentForm(formData), reporter: user.name, shipNo: await nextShipNo(), sortOrder: await nextShipmentSortOrder(salesOwner), createdById: user.id, updatedById: user.id }
+  const draftKey = formString(formData, "draftKey");
+  const failPath = draftKey ? `/shipments/new?draft=${encodeURIComponent(draftKey)}` : "/shipments/new";
+  if (!buyer) fail(failPath, "바이어는 필수입니다.");
+
+  const buyers = await prisma.buyerMaster.findMany({
+    select: {
+      buyerName: true,
+      exportCountry: true,
+      defaultCurrency: true,
+      salesOwner: true,
+      exportOwner: true,
+      salesEmailRecipients: true
+    }
   });
+  const buyerMaster = findRegisteredBuyer(buyer, buyers);
+  const resolvedBuyer = buyerMaster?.buyerName || buyer;
+
+  const salesOwner = formString(formData, "salesOwner") || buyerMaster?.salesOwner || "";
+  if (!salesOwner) {
+    fail(failPath, "영업담당자를 선택해주세요. 바이어 마스터에 영업담당자를 등록했는지 확인해 주세요.");
+  }
+
+  const form = readShipmentForm(formData);
+  const shipment = await prisma.shipmentRequest.create({
+    data: {
+      ...form,
+      buyer: resolvedBuyer,
+      salesOwner,
+      exportCountry: form.exportCountry || buyerMaster?.exportCountry || "",
+      currency: form.currency || buyerMaster?.defaultCurrency || "USD",
+      exportOwner: form.exportOwner || buyerMaster?.exportOwner || "",
+      salesEmailRecipients: form.salesEmailRecipients || buyerMaster?.salesEmailRecipients || "",
+      exportEmailRecipients: form.exportOwner || buyerMaster?.exportOwner || "",
+      contactPerson: form.exportOwner || buyerMaster?.exportOwner || "",
+      reporter: user.name,
+      shipNo: await nextShipNo(),
+      sortOrder: await nextShipmentSortOrder(salesOwner),
+      createdById: user.id,
+      updatedById: user.id
+    }
+  });
+  await createProductsFromDraftJson(shipment.id, formString(formData, "draftProductsJson"), user.id);
   await saveAttachments(formData.getAll("files").filter((f): f is File => f instanceof File), "SHIPMENT", shipment.id, user.id);
   revalidatePath("/shipments");
   redirect(`/shipments/${shipment.id}`);
+}
+
+export async function createShipmentFromOrderAction(formData: FormData) {
+  const user = await requireUser();
+  const buyer = formString(formData, "buyer");
+  const exportCountry = formString(formData, "exportCountry");
+  if (!buyer) fail("/orders", "바이어 정보가 없어 선적의뢰를 만들 수 없습니다.");
+
+  const buyers = await prisma.buyerMaster.findMany({
+    select: {
+      buyerName: true,
+      exportCountry: true,
+      defaultCurrency: true,
+      salesOwner: true,
+      exportOwner: true,
+      salesEmailRecipients: true
+    }
+  });
+  const buyerMaster = findRegisteredBuyer(buyer, buyers);
+  const salesOwner = buyerMaster?.salesOwner || user.name;
+  const shipment = await prisma.shipmentRequest.create({
+    data: {
+      status: ShipmentStatus.REQUEST_WAITING,
+      exportCountry: exportCountry || buyerMaster?.exportCountry || "",
+      buyer: buyerMaster?.buyerName || buyer,
+      currency: buyerMaster?.defaultCurrency || "USD",
+      salesOwner,
+      exportOwner: buyerMaster?.exportOwner || "",
+      salesEmailRecipients: buyerMaster?.salesEmailRecipients || "",
+      exportEmailRecipients: buyerMaster?.exportOwner || "",
+      contactPerson: buyerMaster?.exportOwner || "",
+      reporter: user.name,
+      shipNo: await nextShipNo(),
+      sortOrder: await nextShipmentSortOrder(salesOwner),
+      createdById: user.id,
+      updatedById: user.id
+    }
+  });
+
+  const productName = formString(formData, "productName");
+  const englishName = formString(formData, "englishName");
+  const productionRequestNo = formString(formData, "productionRequestNo");
+  const piNo = formString(formData, "piNo");
+  if (productName || englishName || productionRequestNo || piNo) {
+    await prisma.shipmentProduct.create({
+      data: {
+        shipmentId: shipment.id,
+        productName: productName || englishName || "제품명 미입력",
+        englishName,
+        productionRequestNo,
+        piNo,
+        createdById: user.id,
+        updatedById: user.id
+      }
+    });
+  }
+
+  revalidatePath("/orders");
+  revalidatePath("/shipments");
+  redirect(`/shipments/${shipment.id}`);
+}
+
+function piDateFromPiNo(piNo: string) {
+  const match = piNo.match(/KUP-(\d{2})(\d{2})(\d{2})/i);
+  if (!match) return null;
+  const date = new Date(Date.UTC(Number(`20${match[1]}`), Number(match[2]) - 1, Number(match[3])));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function parseJsonArray(raw: string) {
+  if (!raw) return [] as unknown[];
+  try {
+    const value = JSON.parse(raw);
+    return Array.isArray(value) ? value : [];
+  } catch {
+    return [];
+  }
+}
+
+type OrderBoardRowFields = Record<string, string>;
+
+function buildOrderEntryDataFromFields(fields: OrderBoardRowFields, userId: string) {
+  const unitPrice = Number(fields.unitPrice) || 0;
+  const quantity = Math.round(Number(fields.quantity) || 0);
+  const orderAmount = Number(fields.orderAmount) || unitPrice * quantity;
+
+  let shipmentLines = parseJsonArray(fields.shipmentLinesJson ?? "");
+  let paymentLines = parseJsonArray(fields.paymentLinesJson ?? "");
+
+  if (!shipmentLines.length) {
+    const invNo = fields.invNo ?? "";
+    const etd = fields.etd ?? "";
+    const lotNo = fields.lotNo ?? "";
+    const shipQty = Math.round(Number(fields.shipmentQuantity) || 0);
+    const shipFocQty = Math.round(Number(fields.shipmentFocQuantity) || 0);
+    const shipAmount = Number(fields.shipmentAmount) || 0;
+    if (invNo || etd || lotNo || shipQty || shipFocQty || shipAmount) {
+      shipmentLines = [{ invNo, etd, lotNo, quantity: shipQty, focQuantity: shipFocQty, amount: shipAmount }];
+    }
+  } else if (shipmentLines.length === 1) {
+    const line = shipmentLines[0] as Record<string, unknown>;
+    shipmentLines = [{
+      invNo: "invNo" in fields ? (fields.invNo ?? "") : String(line.invNo ?? ""),
+      etd: "etd" in fields ? (fields.etd ?? "") : String(line.etd ?? ""),
+      lotNo: "lotNo" in fields ? (fields.lotNo ?? "") : String(line.lotNo ?? ""),
+      quantity: "shipmentQuantity" in fields ? Math.round(Number(fields.shipmentQuantity) || 0) : Number(line.quantity) || 0,
+      focQuantity: "shipmentFocQuantity" in fields ? Math.round(Number(fields.shipmentFocQuantity) || 0) : Number(line.focQuantity) || 0,
+      amount: "shipmentAmount" in fields ? Number(fields.shipmentAmount) || 0 : Number(line.amount) || 0
+    }];
+  }
+
+  if (!paymentLines.length) {
+    const type = fields.paymentType ?? "";
+    const date = fields.paymentDate ?? "";
+    const amount = Number(fields.paymentAmount) || 0;
+    if (type || date || amount) {
+      paymentLines = [{ type: type || "T/T", date, amount, source: "수동" }];
+    }
+  } else if (paymentLines.length === 1) {
+    const line = paymentLines[0] as Record<string, unknown>;
+    paymentLines = [{
+      type: "paymentType" in fields ? (fields.paymentType || "T/T") : String(line.type ?? "T/T"),
+      date: "paymentDate" in fields ? (fields.paymentDate ?? "") : String(line.date ?? ""),
+      amount: "paymentAmount" in fields ? Number(fields.paymentAmount) || 0 : Number(line.amount) || 0,
+      source: String(line.source ?? "수동")
+    }];
+  }
+
+  return {
+    exportCountry: fields.exportCountry ?? "",
+    buyer: fields.buyer ?? "",
+    piDate: fields.piDate ? new Date(`${fields.piDate}T00:00:00.000Z`) : piDateFromPiNo(fields.piNo ?? ""),
+    piNo: fields.piNo ?? "",
+    productionRequestNo: fields.productionRequestNo ?? "",
+    productName: fields.productName ?? "",
+    unitPrice,
+    quantity,
+    focQuantity: Math.round(Number(fields.orderFocQuantity) || 0),
+    amount: orderAmount,
+    note: fields.note ?? "",
+    leaderNote: fields.leaderNote ?? "",
+    leaderPrivateNote: fields.leaderPrivateNote ?? "",
+    shipmentLines,
+    paymentLines: ledgerPaymentLinesOnly(paymentLines),
+    updatedById: userId
+  };
+}
+
+function formDataToFields(formData: FormData): OrderBoardRowFields {
+  const fields: OrderBoardRowFields = {};
+  for (const [key, value] of formData.entries()) {
+    if (typeof value === "string") fields[key] = value;
+  }
+  return fields;
+}
+
+export async function saveOrderBoardRowAction(formData: FormData) {
+  const user = await requireUser();
+  const owner = formString(formData, "owner") || user.name;
+  await assertCanEditOrderBoard(user.name, owner);
+  const sheet = formString(formData, "sheet");
+  const rowKey = formString(formData, "rowKey");
+  const fields = formDataToFields(formData);
+  const data = buildOrderEntryDataFromFields(fields, user.id);
+  const { isOverseasSalesAllOwner } = await import("@/lib/overseas-sales-roster");
+
+  if (!rowKey.startsWith("entry:") && isBlankOrderEntry(data)) {
+    throw new Error("PI 번호, 생산의뢰번호, 제품명 중 하나 이상과 오더 금액이 필요합니다.");
+  }
+
+  let salesOwner = owner;
+  if (isOverseasSalesAllOwner(owner)) {
+    const buyerName = (data.buyer || "").trim();
+    const buyer = buyerName
+      ? await prisma.buyerMaster.findFirst({ where: { buyerName }, select: { salesOwner: true } })
+      : null;
+    salesOwner = buyer?.salesOwner?.trim() || user.name;
+  }
+
+  if (rowKey.startsWith("entry:")) {
+    const existing = await prisma.orderEntry.findUnique({ where: { id: rowKey.slice(6) } });
+    if (!existing) throw new Error("오더를 찾을 수 없습니다.");
+    const isLeaderViewer = isOverseasSalesAllOwner(owner) || (await isCurrentUserOverseasLeader(user.name));
+    await prisma.orderEntry.update({
+      where: { id: existing.id },
+      data: {
+        ...data,
+        // Preserve the other party's note fields depending on viewer role.
+        note: isLeaderViewer ? existing.note : data.note,
+        leaderPrivateNote: isLeaderViewer ? data.leaderPrivateNote : existing.leaderPrivateNote,
+        leaderNote: isLeaderViewer ? data.leaderNote : existing.leaderNote,
+        salesOwner: existing.salesOwner
+      }
+    });
+  } else {
+    await prisma.orderEntry.create({
+      data: { ...data, salesOwner, createdById: user.id }
+    });
+  }
+
+  revalidatePath("/orders");
+  redirect(`/orders?owner=${encodeURIComponent(owner)}&sheet=${encodeURIComponent(sheet)}`);
+}
+
+async function isCurrentUserOverseasLeader(userName: string) {
+  const { isOverseasSalesLeader } = await import("@/lib/overseas-sales-roster");
+  const leaders = await prisma.dropdownOption.findMany({
+    where: { category: DropdownCategory.OVERSEAS_SALES_TEAM },
+    select: { label: true, partNo: true, rankNo: true, sortOrder: true }
+  });
+  return isOverseasSalesLeader(userName, leaders);
+}
+
+export async function saveAllOrderBoardRowsAction(formData: FormData) {
+  const user = await requireUser();
+  const owner = formString(formData, "owner") || user.name;
+  await assertCanEditOrderBoard(user.name, owner);
+  const { isOverseasSalesAllOwner } = await import("@/lib/overseas-sales-roster");
+  const isLeaderViewer = isOverseasSalesAllOwner(owner) || (await isCurrentUserOverseasLeader(user.name));
+  const rows = parseJsonArray(formString(formData, "rowsPayload")) as OrderBoardRowFields[];
+
+  const writes = [];
+  for (const fields of rows) {
+    const rowKey = fields.rowKey ?? "";
+    const data = buildOrderEntryDataFromFields(fields, user.id);
+    if (!rowKey.startsWith("entry:") && isBlankOrderEntry(data)) continue;
+    if (rowKey.startsWith("entry:")) {
+      const existing = await prisma.orderEntry.findUnique({ where: { id: rowKey.slice(6) } });
+      if (!existing) continue;
+      writes.push(
+        prisma.orderEntry.update({
+          where: { id: existing.id },
+          data: {
+            ...data,
+            note: isLeaderViewer ? existing.note : data.note,
+            leaderPrivateNote: isLeaderViewer ? data.leaderPrivateNote : existing.leaderPrivateNote,
+            leaderNote: isLeaderViewer ? data.leaderNote : existing.leaderNote,
+            salesOwner: existing.salesOwner
+          }
+        })
+      );
+      continue;
+    }
+    let salesOwner = owner;
+    if (isOverseasSalesAllOwner(owner)) {
+      const buyerName = (data.buyer || "").trim();
+      const buyer = buyerName
+        ? await prisma.buyerMaster.findFirst({ where: { buyerName }, select: { salesOwner: true } })
+        : null;
+      salesOwner = buyer?.salesOwner?.trim() || user.name;
+    }
+    writes.push(
+      prisma.orderEntry.create({
+        data: { ...data, salesOwner, createdById: user.id }
+      })
+    );
+  }
+
+  if (writes.length) await prisma.$transaction(writes);
+
+  revalidatePath("/orders");
+  return { ok: true as const, count: writes.length };
+}
+
+export async function ackOrderLeaderNoteAction(input: {
+  orderEntryId: string;
+  noteSnapshot: string;
+  showAgain: boolean;
+  owner?: string;
+}) {
+  const user = await requireUser();
+  const orderEntryId = input.orderEntryId?.trim();
+  if (!orderEntryId) return { ok: false as const, message: "오더를 찾을 수 없습니다." };
+
+  await prisma.orderLeaderNoteAck.upsert({
+    where: { orderEntryId_userId: { orderEntryId, userId: user.id } },
+    update: {
+      noteSnapshot: input.noteSnapshot ?? "",
+      showAgain: Boolean(input.showAgain)
+    },
+    create: {
+      orderEntryId,
+      userId: user.id,
+      noteSnapshot: input.noteSnapshot ?? "",
+      showAgain: Boolean(input.showAgain)
+    }
+  });
+  revalidatePath("/orders");
+  return { ok: true as const };
+}
+
+export async function saveOrderEntriesAction(formData: FormData) {
+  const user = await requireUser();
+  const owner = formString(formData, "owner") || user.name;
+  assertOrderBoardOwner(user.name, owner);
+  const rowCount = formData.getAll("rowKey").length;
+  const buyerNames = Array.from({ length: rowCount }, (_, index) => formString(formData, `buyer-${index}`)).filter(Boolean);
+  const buyers = buyerNames.length
+    ? await prisma.buyerMaster.findMany({ where: { buyerName: { in: buyerNames } }, select: { buyerName: true, exportCountry: true } })
+    : [];
+  const countryByBuyer = new Map(buyers.map((buyer) => [buyer.buyerName, buyer.exportCountry]));
+  const exportProducts = await prisma.exportProductName.findMany({
+    select: { exportCountry: true, productName: true, englishName: true }
+  });
+
+  const creates = [];
+  for (let index = 0; index < rowCount; index += 1) {
+    const buyer = formString(formData, `buyer-${index}`);
+    const piNo = formString(formData, `piNo-${index}`);
+    const productionRequestNo = formString(formData, `productionRequestNo-${index}`);
+    const productName = formString(formData, `productName-${index}`);
+    const unitPrice = formNumber(formData, `unitPrice-${index}`);
+    const quantity = formNumber(formData, `quantity-${index}`);
+    const focQuantity = formNumber(formData, `focQuantity-${index}`);
+    const hasValue = buyer || piNo || productionRequestNo || productName || unitPrice || quantity || focQuantity;
+    if (!hasValue) continue;
+    creates.push(
+      prisma.orderEntry.create({
+        data: {
+          salesOwner: owner,
+          exportCountry: formString(formData, `exportCountry-${index}`) || countryByBuyer.get(buyer) || "",
+          buyer,
+          piDate: formDate(formData, `piDate-${index}`) || piDateFromPiNo(piNo),
+          piNo,
+          productionRequestNo,
+          productName,
+          incoterms: formString(formData, `incoterms-${index}`),
+          transport: formString(formData, `transport-${index}`),
+          destinationPort: formString(formData, `destinationPort-${index}`),
+          unitPrice,
+          quantity,
+          focQuantity,
+          amount: unitPrice * quantity,
+          createdById: user.id,
+          updatedById: user.id
+        }
+      })
+    );
+  }
+
+  const createdEntries = creates.length ? await prisma.$transaction(creates) : [];
+  const ownerCountries = await ownerCountriesForSalesOwner(owner);
+  const triggeredAlerts = createdEntries.length
+    ? await findTriggeredOrderAlerts(ownerCountries, user.id, createdEntries, exportProducts)
+    : [];
+
+  revalidatePath("/orders");
+  return {
+    ok: true as const,
+    count: createdEntries.length,
+    alerts: triggeredAlerts
+  };
+}
+
+export type TriggeredOrderAlert = {
+  alertId: string;
+  orderEntryId: string;
+  exportCountry: string;
+  productName: string;
+  content: string;
+};
+
+async function ownerCountriesForSalesOwner(owner: string) {
+  const buyers = await prisma.buyerMaster.findMany({
+    where: { salesOwner: owner },
+    select: { exportCountry: true, salesOwner: true }
+  });
+  return ownerCountriesFromBuyers(buyers, owner);
+}
+
+async function findTriggeredOrderAlerts(
+  ownerCountries: string[],
+  userId: string,
+  entries: Array<{ id: string; exportCountry: string | null; productName: string | null }>,
+  exportProducts: Array<{ exportCountry: string; productName: string; englishName: string }>
+): Promise<TriggeredOrderAlert[]> {
+  if (!ownerCountries.length) return [];
+  const alerts = await listOrderAlertsForMatching(ownerCountries, userId);
+
+  const triggered: TriggeredOrderAlert[] = [];
+  const seen = new Set<string>();
+
+  for (const entry of entries) {
+    const exportCountry = entry.exportCountry?.trim() || "";
+    const productName = entry.productName?.trim() || "";
+    if (!exportCountry || !productName || !ownerCountries.includes(exportCountry)) continue;
+
+    for (const alert of alerts) {
+      if (
+        !orderMatchesAlert(
+          { exportCountry, productName },
+          { exportCountry: alert.exportCountry, productName: alert.productName },
+          exportProducts
+        )
+      ) {
+        continue;
+      }
+
+      const hasPermanent = alert.dismissals.some((item) => item.dismissType === OrderAlertDismissType.PERMANENT);
+      if (hasPermanent) continue;
+
+      const snoozedForEntry = alert.dismissals.some(
+        (item) => item.dismissType === OrderAlertDismissType.LATER && item.orderEntryId === entry.id
+      );
+      if (snoozedForEntry) continue;
+
+      const key = `${alert.id}:${entry.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      triggered.push({
+        alertId: alert.id,
+        orderEntryId: entry.id,
+        exportCountry: alert.exportCountry,
+        productName: alert.productName,
+        content: alert.content
+      });
+    }
+  }
+
+  return triggered;
+}
+
+export async function saveOrderAlertAction(formData: FormData) {
+  const user = await requireUser();
+  const owner = formString(formData, "owner") || user.name;
+  const exportCountry = formString(formData, "exportCountry");
+  const productName = formString(formData, "productName");
+  const content = formString(formData, "content");
+  if (!exportCountry && !productName) {
+    return { ok: false as const, message: "국가 또는 품목을 선택해주세요." };
+  }
+  if (!content.trim()) return { ok: false as const, message: "알림 내용을 입력해주세요." };
+
+  const [ownerCountries, exportProducts] = await Promise.all([
+    ownerCountriesForSalesOwner(owner),
+    prisma.exportProductName.findMany({
+      select: { exportCountry: true, productName: true, englishName: true }
+    })
+  ]);
+
+  if (!ownerCountries.length) {
+    return { ok: false as const, message: "담당 국가가 없어 알림을 만들 수 없습니다." };
+  }
+
+  if (exportCountry && !ownerCountries.includes(exportCountry)) {
+    return { ok: false as const, message: "선택한 국가는 현재 담당 국가가 아닙니다." };
+  }
+
+  const targets = buildOrderAlertTargets(exportCountry, productName, ownerCountries, exportProducts);
+  if (!targets.length) {
+    return { ok: false as const, message: "생성할 알림 대상이 없습니다." };
+  }
+
+  let createdCount = 0;
+  try {
+    for (const target of targets) {
+      const existing = await findActiveOrderAlert(target.exportCountry, target.productName);
+      if (existing) continue;
+      await createOrderAlertRecord({
+        salesOwner: owner,
+        exportCountry: target.exportCountry,
+        productName: target.productName,
+        content: content.trim(),
+        createdById: user.id,
+        updatedById: user.id
+      });
+      createdCount += 1;
+    }
+    if (!createdCount) {
+      return { ok: false as const, message: "이미 등록된 알림이 있거나 생성할 알림이 없습니다." };
+    }
+  } catch {
+    return { ok: false as const, message: orderAlertNotReadyMessage() };
+  }
+
+  revalidatePath("/orders");
+  return { ok: true as const, createdCount };
+}
+
+export async function updateOrderAlertAction(formData: FormData) {
+  const user = await requireUser();
+  const owner = formString(formData, "owner") || user.name;
+  const id = formString(formData, "id");
+  const exportCountry = formString(formData, "exportCountry");
+  const productName = formString(formData, "productName");
+  const content = formString(formData, "content");
+  if (!id) return { ok: false as const, message: "수정할 알림을 찾을 수 없습니다." };
+  if (!exportCountry || !productName || !content.trim()) {
+    return { ok: false as const, message: "국가, 품목, 내용을 모두 입력해주세요." };
+  }
+
+  const ownerCountries = await ownerCountriesForSalesOwner(owner);
+  if (!ownerCountries.includes(exportCountry)) {
+    return { ok: false as const, message: "선택한 국가는 현재 담당 국가가 아닙니다." };
+  }
+
+  const exportProducts = await prisma.exportProductName.findMany({
+    select: { exportCountry: true, productName: true, englishName: true }
+  });
+  const canonicalName = canonicalProductName(exportCountry, productName, exportProducts);
+
+  try {
+    await updateOrderAlertRecord(id, {
+      exportCountry,
+      productName: canonicalName,
+      content: content.trim(),
+      updatedById: user.id
+    });
+  } catch {
+    return { ok: false as const, message: orderAlertNotReadyMessage() };
+  }
+
+  revalidatePath("/orders");
+  return { ok: true as const };
+}
+
+export async function cancelOrderAlertAction(formData: FormData) {
+  const user = await requireUser();
+  const id = formString(formData, "id");
+  if (!id) return { ok: false as const, message: "취소할 알림을 찾을 수 없습니다." };
+
+  try {
+    await cancelOrderAlertRecord(id, user.id);
+  } catch {
+    return { ok: false as const, message: orderAlertNotReadyMessage() };
+  }
+
+  revalidatePath("/orders");
+  return { ok: true as const };
+}
+
+export async function dismissOrderAlertAction(formData: FormData) {
+  const user = await requireUser();
+  const alertId = formString(formData, "alertId");
+  const orderEntryId = formString(formData, "orderEntryId");
+  const dismissType = formString(formData, "dismissType") as OrderAlertDismissType;
+  if (!alertId || !orderEntryId) return { ok: false as const, message: "알림 정보가 없습니다." };
+  if (dismissType !== OrderAlertDismissType.PERMANENT && dismissType !== OrderAlertDismissType.LATER) {
+    return { ok: false as const, message: "잘못된 알림 처리 유형입니다." };
+  }
+
+  try {
+    await createOrderAlertDismissalRecord({
+      orderAlertId: alertId,
+      userId: user.id,
+      dismissType,
+      orderEntryId: dismissType === OrderAlertDismissType.LATER ? orderEntryId : null
+    });
+  } catch {
+    return { ok: false as const, message: orderAlertNotReadyMessage() };
+  }
+
+  return { ok: true as const };
+}
+
+export async function registerSalesOrderAction(formData: FormData) {
+  const user = await requireUser();
+  const owner = formString(formData, "owner") || user.name;
+  assertOrderBoardOwner(user.name, owner);
+  const orderKey = formString(formData, "orderKey");
+  if (!orderKey) fail(`/orders?owner=${encodeURIComponent(owner)}`, "등록할 오더를 찾을 수 없습니다.");
+  await prisma.salesRegistration.upsert({
+    where: { orderKey_salesOwner: { orderKey, salesOwner: owner } },
+    update: {
+      exportCountry: formString(formData, "exportCountry"),
+      buyer: formString(formData, "buyer"),
+      piNo: formString(formData, "piNo"),
+      productionRequestNo: formString(formData, "productionRequestNo"),
+      amount: formNumber(formData, "amount"),
+      registeredAt: formDate(formData, "registeredAt") || new Date(),
+      status: "REGISTERED",
+      note: formString(formData, "note"),
+      updatedById: user.id
+    },
+    create: {
+      orderKey,
+      salesOwner: owner,
+      exportCountry: formString(formData, "exportCountry"),
+      buyer: formString(formData, "buyer"),
+      piNo: formString(formData, "piNo"),
+      productionRequestNo: formString(formData, "productionRequestNo"),
+      amount: formNumber(formData, "amount"),
+      registeredAt: formDate(formData, "registeredAt") || new Date(),
+      status: "REGISTERED",
+      note: formString(formData, "note"),
+      createdById: user.id,
+      updatedById: user.id
+    }
+  });
+  revalidatePath("/orders");
+  redirect(`/orders?owner=${encodeURIComponent(owner)}&sheet=${encodeURIComponent(formString(formData, "sheet"))}`);
+}
+
+export async function cancelSalesOrderRegistrationAction(formData: FormData) {
+  const user = await requireUser();
+  const owner = formString(formData, "owner") || user.name;
+  assertOrderBoardOwner(user.name, owner);
+  const orderKey = formString(formData, "orderKey");
+  if (orderKey) {
+    await prisma.salesRegistration.updateMany({
+      where: { orderKey, salesOwner: owner },
+      data: { status: "CANCELED", updatedById: user.id }
+    });
+  }
+  revalidatePath("/orders");
+  redirect(`/orders?owner=${encodeURIComponent(owner)}&sheet=${encodeURIComponent(formString(formData, "sheet"))}`);
 }
 
 export async function updateShipmentAction(formData: FormData) {
@@ -459,6 +1172,125 @@ export async function deleteProductAction(formData: FormData) {
   await Promise.all([recalcShipmentInvoice(shipmentId), autoLinkShipmentLc(shipmentId, user.id)]);
   revalidatePath(`/shipments/${shipmentId}`);
   redirect(`/shipments/${shipmentId}`);
+}
+
+type DraftProductInput = {
+  productName?: string;
+  englishName?: string;
+  productionRequestNo?: string;
+  piNo?: string;
+  exportUnitPrice?: number;
+  bxQtyPaid?: number;
+  bxQtyFoc?: number;
+};
+
+type ProductMasterLookup = {
+  id: string;
+  name: string;
+  costGroupCode: string;
+  factory: Factory;
+};
+
+function resolveDraftProductMaster(
+  productName: string,
+  englishName: string,
+  mastersByName: Map<string, ProductMasterLookup>,
+  aliasesByEnglish: Map<string, string>
+) {
+  const koreanName = productName.trim();
+  if (koreanName) {
+    const direct = mastersByName.get(koreanName);
+    if (direct) return direct;
+  }
+
+  const englishKey = englishName.trim().toLowerCase();
+  if (englishKey) {
+    const aliasKorean = aliasesByEnglish.get(englishKey);
+    if (aliasKorean) return mastersByName.get(aliasKorean) ?? null;
+  }
+
+  if (koreanName) {
+    const aliasKorean = aliasesByEnglish.get(koreanName.toLowerCase());
+    if (aliasKorean) return mastersByName.get(aliasKorean) ?? null;
+  }
+
+  return null;
+}
+
+function parseDraftProductsJson(raw: string): DraftProductInput[] {
+  if (!raw.trim()) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as DraftProductInput[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function createProductsFromDraftJson(shipmentId: string, raw: string, userId: string) {
+  const products = parseDraftProductsJson(raw);
+  if (!products.length) return;
+
+  const shipment = await prisma.shipmentRequest.findUnique({
+    where: { id: shipmentId },
+    select: { exportCountry: true }
+  });
+  const exportCountry = shipment?.exportCountry?.trim() || "";
+
+  const [masters, exportNames] = await Promise.all([
+    prisma.productMaster.findMany({ select: { id: true, name: true, costGroupCode: true, factory: true } }),
+    exportCountry
+      ? prisma.exportProductName.findMany({
+          where: { exportCountry },
+          select: { productName: true, englishName: true }
+        })
+      : Promise.resolve([])
+  ]);
+
+  const mastersByName = new Map(masters.map((master) => [master.name.trim(), master]));
+  const aliasesByEnglish = new Map<string, string>();
+  for (const alias of exportNames) {
+    const korean = alias.productName.trim();
+    if (!korean) continue;
+    const english = alias.englishName.trim().toLowerCase();
+    if (english) aliasesByEnglish.set(english, korean);
+    aliasesByEnglish.set(korean.toLowerCase(), korean);
+  }
+
+  for (const product of products) {
+    const productName = product.productName?.trim() || product.englishName?.trim() || "";
+    const englishName = product.englishName?.trim() || "";
+    const productionRequestNo = product.productionRequestNo?.trim() || "";
+    const piNo = product.piNo?.trim() || "";
+    if (!productName && !englishName && !productionRequestNo && !piNo) continue;
+
+    const bxQtyPaid = Math.round(Number(product.bxQtyPaid) || 0);
+    const bxQtyFoc = Math.round(Number(product.bxQtyFoc) || 0);
+    const exportUnitPrice = Number(product.exportUnitPrice) || 0;
+    const master = resolveDraftProductMaster(productName, englishName, mastersByName, aliasesByEnglish);
+
+    await prisma.shipmentProduct.create({
+      data: {
+        shipmentId,
+        productMasterId: master?.id ?? null,
+        productName: productName || englishName || "제품명 미입력",
+        costGroupCode: master?.costGroupCode ?? null,
+        factory: master?.factory ?? null,
+        englishName,
+        productionRequestNo,
+        piNo,
+        exportUnitPrice,
+        bxQtyPaid,
+        bxQtyFoc,
+        bxQtyTotal: bxQtyPaid + bxQtyFoc,
+        amount: exportUnitPrice * bxQtyPaid,
+        createdById: userId,
+        updatedById: userId
+      }
+    });
+  }
+
+  await Promise.all([recalcShipmentInvoice(shipmentId), autoLinkShipmentLc(shipmentId, userId)]);
 }
 
 function readProductForm(formData: FormData, userId: string) {
@@ -1658,9 +2490,31 @@ export async function upsertBuyerMasterAction(formData: FormData) {
     contactPerson: formString(formData, "exportOwner"),
     updatedById: user.id
   };
+
+  const previous = id
+    ? await prisma.buyerMaster.findUnique({
+        where: { id },
+        select: { buyerName: true, salesOwner: true, exportCountry: true }
+      })
+    : null;
+
   if (id) await prisma.buyerMaster.update({ where: { id }, data });
   else await prisma.buyerMaster.create({ data: { ...data, createdById: user.id } });
+
+  const ownerChanged = Boolean(previous && previous.salesOwner !== data.salesOwner);
+  if (ownerChanged && data.salesOwner) {
+    const buyerNames = [...new Set([previous?.buyerName, data.buyerName].map((name) => (name ?? "").trim()).filter(Boolean))];
+    if (buyerNames.length) {
+      await reassignOrderManagementOwner({
+        toOwner: data.salesOwner,
+        buyerNames,
+        updatedById: user.id
+      });
+    }
+  }
+
   revalidatePath("/admin");
+  revalidatePath("/orders");
 }
 
 export async function bulkUpdateBuyerMastersByCountryAction(formData: FormData) {
@@ -1691,7 +2545,15 @@ export async function bulkUpdateBuyerMastersByCountryAction(formData: FormData) 
       updatedById: user.id
     }
   });
+
+  await reassignOrderManagementOwner({
+    toOwner: salesOwner,
+    exportCountry,
+    updatedById: user.id
+  });
+
   revalidatePath("/admin");
+  revalidatePath("/orders");
 }
 
 export async function upsertDropdownAction(formData: FormData) {
@@ -1720,18 +2582,35 @@ export async function upsertDropdownAction(formData: FormData) {
       fail("/admin", "구분(항구/공항)을 선택해주세요.");
     }
   }
+
+  let partNo: number | null = null;
+  let rankNo: number | null = null;
+  let sortOrder = formNumber(formData, "sortOrder");
+  if (category === DropdownCategory.OVERSEAS_SALES_TEAM) {
+    partNo = Math.round(formNumber(formData, "partNo"));
+    rankNo = Math.round(formNumber(formData, "rankNo"));
+    if (!label) fail("/admin", "이름을 선택해주세요.");
+    if (Number.isNaN(partNo) || partNo < -1) fail("/admin", "파트는 -1(팀장), 0(수습), 1 이상(N파트)으로 입력해주세요.");
+    if (!rankNo || rankNo < 1) fail("/admin", "순위를 1 이상 숫자로 입력해주세요.");
+    const { overseasSalesSortOrder } = await import("@/lib/overseas-sales-roster");
+    sortOrder = overseasSalesSortOrder(partNo, rankNo);
+  }
+
   const data = {
     category,
     label,
     value,
-    sortOrder: formNumber(formData, "sortOrder"),
+    sortOrder,
     destinationCountry,
     destinationKind,
+    partNo,
+    rankNo,
     updatedById: user.id
   };
   if (id) await prisma.dropdownOption.update({ where: { id }, data });
   else await prisma.dropdownOption.create({ data: { ...data, createdById: user.id } });
   revalidatePath("/admin");
+  if (category === DropdownCategory.OVERSEAS_SALES_TEAM) revalidatePath("/orders");
 }
 
 export async function reorderDropdownAction(formData: FormData) {
@@ -1746,6 +2625,39 @@ export async function reorderDropdownAction(formData: FormData) {
     )
   );
   revalidatePath("/admin");
+}
+
+export async function saveOverseasSalesRosterAction(formData: FormData) {
+  await requireUser();
+  let rows: Array<{ id: string; label: string; partNo: number; rankNo: number; sortOrder: number }> = [];
+  try {
+    const parsed = JSON.parse(formString(formData, "rowsPayload") || "[]");
+    rows = Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return { ok: false as const, message: "저장 데이터가 올바르지 않습니다." };
+  }
+  if (!rows.length) return { ok: false as const, message: "저장할 구성원이 없습니다." };
+
+  const { normalizeOverseasSalesPart, overseasSalesSortOrder } = await import("@/lib/overseas-sales-roster");
+  await prisma.$transaction(
+    rows.map((row) => {
+      const partNo = normalizeOverseasSalesPart(row.partNo);
+      const rankNo = Math.max(1, Math.round(Number(row.rankNo) || 1));
+      return prisma.dropdownOption.update({
+        where: { id: row.id },
+        data: {
+          partNo,
+          rankNo,
+          sortOrder: overseasSalesSortOrder(partNo, rankNo),
+          value: row.label,
+          label: row.label
+        }
+      });
+    })
+  );
+  revalidatePath("/admin");
+  revalidatePath("/orders");
+  return { ok: true as const };
 }
 
 export async function upsertTeamEmailAction(formData: FormData) {
@@ -1768,6 +2680,7 @@ export async function deleteGenericAction(formData: FormData) {
       await prisma.dropdownOption.delete({ where: { id } });
       const rows = await prisma.dropdownOption.findMany({ where: { category: target.category }, orderBy: [{ sortOrder: "asc" }, { label: "asc" }] });
       await Promise.all(rows.map((row, index) => prisma.dropdownOption.update({ where: { id: row.id }, data: { sortOrder: index } })));
+      if (target.category === DropdownCategory.OVERSEAS_SALES_TEAM) revalidatePath("/orders");
     }
   } else if (model === "exportProductName") {
     await prisma.exportProductName.delete({ where: { id } });

@@ -1,0 +1,2 @@
+ALTER TABLE "OrderEntry" ADD COLUMN "shipmentLines" JSONB NOT NULL DEFAULT '[]';
+ALTER TABLE "OrderEntry" ADD COLUMN "paymentLines" JSONB NOT NULL DEFAULT '[]';

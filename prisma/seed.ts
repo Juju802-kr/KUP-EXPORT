@@ -1,4 +1,5 @@
 import { PrismaClient, DropdownCategory, Factory, Team } from "@prisma/client";
+import { inferDestinationFields } from "../src/lib/destination-registry";
 
 const prisma = new PrismaClient();
 
@@ -41,12 +42,66 @@ const options: Record<DropdownCategory, string[]> = {
 async function main() {
   for (const [category, labels] of Object.entries(options) as [DropdownCategory, string[]][]) {
     for (const [index, label] of labels.entries()) {
+      const destinationMeta =
+        category === DropdownCategory.DESTINATION_PORT ? inferDestinationFields(label) : null;
       await prisma.dropdownOption.upsert({
         where: { category_label: { category, label } },
-        update: { label, sortOrder: index },
-        create: { category, label, value: label, sortOrder: index }
+        update: {
+          label,
+          sortOrder: index,
+          ...(destinationMeta
+            ? {
+                destinationCountry: destinationMeta.country || null,
+                destinationKind: destinationMeta.kind
+              }
+            : {})
+        },
+        create: {
+          category,
+          label,
+          value: label,
+          sortOrder: index,
+          ...(destinationMeta
+            ? {
+                destinationCountry: destinationMeta.country || null,
+                destinationKind: destinationMeta.kind
+              }
+            : {})
+        }
       });
     }
+  }
+
+  const overseasSalesTeam: Array<{ label: string; partNo: number; rankNo: number }> = [
+    { label: "조한선", partNo: -1, rankNo: 1 },
+    { label: "김상훈", partNo: 1, rankNo: 1 },
+    { label: "도준현", partNo: 1, rankNo: 2 },
+    { label: "변재형", partNo: 1, rankNo: 3 },
+    { label: "최유라", partNo: 2, rankNo: 1 },
+    { label: "박사라", partNo: 2, rankNo: 2 },
+    { label: "음정현", partNo: 2, rankNo: 3 },
+    { label: "심상완", partNo: 3, rankNo: 1 },
+    { label: "권정현", partNo: 3, rankNo: 2 }
+  ];
+  for (const member of overseasSalesTeam) {
+    const sortOrder = member.partNo * 1000 + member.rankNo;
+    await prisma.dropdownOption.upsert({
+      where: { category_label: { category: DropdownCategory.OVERSEAS_SALES_TEAM, label: member.label } },
+      update: {
+        partNo: member.partNo,
+        rankNo: member.rankNo,
+        sortOrder,
+        value: member.label
+      },
+      create: {
+        category: DropdownCategory.OVERSEAS_SALES_TEAM,
+        label: member.label,
+        value: member.label,
+        partNo: member.partNo,
+        rankNo: member.rankNo,
+        sortOrder
+      }
+    });
   }
 
   if ((await prisma.productMaster.count()) === 0) {

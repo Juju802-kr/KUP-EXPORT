@@ -2,10 +2,17 @@
 
 import { DropdownCategory, DropdownOption, ShipmentStatus } from "@prisma/client";
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SearchableCombobox } from "@/components/SearchableCombobox";
 import { FlexibleDateInput } from "@/components/FlexibleDateInput";
+import {
+  buildDestinationRegistry,
+  pickDestinationByCountry,
+  type RegisteredDestination
+} from "@/lib/destination-registry";
 import { createShipmentAction, updateShipmentAction } from "@/server/actions";
+import { findRegisteredBuyer } from "@/lib/order-pi-import";
+import { type ShipmentOrderProductDraft } from "@/lib/shipment-order-draft";
 
 type Options = Record<DropdownCategory, DropdownOption[]>;
 type BuyerOption = {
@@ -37,9 +44,9 @@ type ShipmentFormValue = {
   emailSent: string | null;
   exportOwner: string | null;
   salesEmailRecipients: string | null;
-  suitabilityDate?: string | null;
-  shippingApprovalDate?: string | null;
-  desiredShipDate?: string | null;
+  suitabilityDate: string | null;
+  shippingApprovalDate: string | null;
+  desiredShipDate: string | null;
   invNo: string | null;
   releaseDate: Date | string | null;
   etd: Date | string | null;
@@ -51,35 +58,78 @@ type ShipmentFormValue = {
 export function ShipmentForm({
   shipment,
   options,
-  buyers
+  buyers,
+  destinationPorts = [],
+  draftProducts = [],
+  draftKey = ""
 }: {
   shipment?: ShipmentFormValue;
   options: Options;
   buyers: BuyerOption[];
+  destinationPorts?: RegisteredDestination[];
+  draftProducts?: ShipmentOrderProductDraft[];
+  draftKey?: string;
 }) {
-  const action = shipment ? updateShipmentAction : createShipmentAction;
-  const buyerMap = useMemo(() => new Map(buyers.map((buyer) => [buyer.buyerName, buyer])), [buyers]);
+  const isEdit = Boolean(shipment?.id);
+  const action = isEdit ? updateShipmentAction : createShipmentAction;
+  const destinationRegistry = useMemo(() => buildDestinationRegistry(destinationPorts), [destinationPorts]);
   const [buyer, setBuyer] = useState(shipment?.buyer ?? "");
   const [salesOwner, setSalesOwner] = useState(shipment?.salesOwner ?? "");
   const [exportCountry, setExportCountry] = useState(shipment?.exportCountry ?? "");
   const [currency, setCurrency] = useState(shipment?.currency ?? "USD");
   const [exportOwner, setExportOwner] = useState(shipment?.exportOwner ?? "");
   const [salesEmailRecipients, setSalesEmailRecipients] = useState(shipment?.salesEmailRecipients ?? "");
+  const [transport, setTransport] = useState(shipment?.transport ?? "");
+  const [incoterms, setIncoterms] = useState(shipment?.incoterms ?? "");
+  const [destinationPort, setDestinationPort] = useState(shipment?.destinationPort ?? "");
+  const [paymentTerm, setPaymentTerm] = useState(shipment?.paymentTerm ?? "");
 
-  function applyBuyer(value: string) {
-    setBuyer(value);
-    const selected = buyerMap.get(value);
+  function applyBuyerMaster(selected: BuyerOption | null | undefined, options?: { forceCountry?: boolean; forceCurrency?: boolean }) {
     if (!selected) return;
+    setBuyer(selected.buyerName);
     setSalesOwner(selected.salesOwner ?? "");
-    setExportCountry(selected.exportCountry ?? "");
-    setCurrency(selected.defaultCurrency ?? "USD");
     setExportOwner(selected.exportOwner ?? "");
     setSalesEmailRecipients(selected.salesEmailRecipients ?? "");
+    if (options?.forceCountry || !exportCountry.trim()) {
+      setExportCountry(selected.exportCountry ?? "");
+    }
+    if (options?.forceCurrency || !currency.trim()) {
+      setCurrency(selected.defaultCurrency ?? "USD");
+    }
   }
+
+  function applyBuyer(value: string) {
+    const selected = findRegisteredBuyer(value, buyers);
+    if (selected) {
+      applyBuyerMaster(selected, { forceCountry: true, forceCurrency: true });
+      return;
+    }
+    setBuyer(value);
+  }
+
+  useEffect(() => {
+    const draftBuyer = shipment?.buyer?.trim();
+    if (!draftBuyer) return;
+    const selected = findRegisteredBuyer(draftBuyer, buyers);
+    if (!selected) return;
+    applyBuyerMaster(selected, {
+      forceCountry: !shipment?.exportCountry,
+      forceCurrency: !shipment?.currency
+    });
+    // Only resolve once when draft/shipment buyer or buyer list is ready.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buyers, shipment?.buyer, shipment?.currency, shipment?.exportCountry]);
+
+  useEffect(() => {
+    if (!incoterms.trim() || !transport.trim() || !exportCountry.trim() || !destinationRegistry.length) return;
+    const picked = pickDestinationByCountry(exportCountry, transport, destinationRegistry);
+    if (picked) setDestinationPort(picked);
+  }, [incoterms, transport, exportCountry, destinationRegistry]);
 
   return (
     <form action={action} className="space-y-6">
-      {shipment ? <input type="hidden" name="id" value={shipment.id} /> : null}
+      {isEdit ? <input type="hidden" name="id" value={shipment!.id} /> : null}
+      {draftKey ? <input type="hidden" name="draftKey" value={draftKey} /> : null}
       <input type="hidden" name="status" value={ShipmentStatus.REQUEST_WAITING} />
       <input type="hidden" name="currency" value={currency} />
       <input type="hidden" name="exportEmailRecipients" value={exportOwner} />
@@ -94,12 +144,12 @@ export function ShipmentForm({
           <Select label="보관조건" name="storageCondition" defaultValue={shipment?.storageCondition} options={options.STORAGE_CONDITION} />
         </FormRow>
         <FormRow columns={3}>
-          <Select label="운송" name="transport" defaultValue={shipment?.transport} options={options.TRANSPORT} />
-          <Select label="인코텀즈" name="incoterms" defaultValue={shipment?.incoterms} options={options.INCOTERMS} />
-          <Select label="목적항" name="destinationPort" defaultValue={shipment?.destinationPort} options={options.DESTINATION_PORT} />
+          <Select label="운송" name="transport" value={transport} onChange={setTransport} options={options.TRANSPORT} />
+          <Select label="인코텀즈" name="incoterms" value={incoterms} onChange={setIncoterms} options={options.INCOTERMS} />
+          <Select label="목적항" name="destinationPort" value={destinationPort} onChange={setDestinationPort} options={options.DESTINATION_PORT} />
         </FormRow>
         <FormRow columns={3}>
-          <Select label="결제조건" name="paymentTerm" defaultValue={shipment?.paymentTerm} options={options.PAYMENT_TERM} />
+          <Select label="결제조건" name="paymentTerm" value={paymentTerm} onChange={setPaymentTerm} options={options.PAYMENT_TERM} />
           <Select label="입금상황" name="depositStatus" defaultValue={shipment?.depositStatus} options={options.DEPOSIT_STATUS} />
           <Input label="LC S/D" name="lcSd" value={shipment?.lcSd} />
         </FormRow>
@@ -116,8 +166,25 @@ export function ShipmentForm({
         <TextArea label="영업담당자 의견" name="salesRequest" value={shipment?.salesRequest} />
       </Box>
 
+      {draftProducts.length ? (
+        <Box title="제품 LIST" columns={1}>
+          <input type="hidden" name="draftProductsJson" value={JSON.stringify(draftProducts)} />
+          <div className="space-y-2">
+            {draftProducts.map((product, index) => (
+              <div key={`${product.piNo}-${product.productionRequestNo}-${index}`} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800">
+                <p className="font-medium">{product.productName}</p>
+                <p className="mt-1 text-slate-600">
+                  {product.englishName ? `${product.englishName} · ` : ""}
+                  PI {product.piNo || "-"} · 생산의뢰 {product.productionRequestNo || "-"} · 수출단가 {product.exportUnitPrice}
+                </p>
+              </div>
+            ))}
+          </div>
+        </Box>
+      ) : null}
+
       <div className="flex justify-end">
-        <button className="btn-primary px-6">{shipment ? "수정 저장" : "선적의뢰 등록"}</button>
+        <button className="btn-primary px-6">{isEdit ? "수정 저장" : "선적의뢰 등록"}</button>
       </div>
     </form>
   );

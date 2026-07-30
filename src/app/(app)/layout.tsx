@@ -1,48 +1,47 @@
-import Link from "next/link";
-import { Settings } from "lucide-react";
+import { AppHeaderNav } from "@/components/AppHeaderNav";
+import { OrderUnsavedGuardHost } from "@/components/OrderUnsavedGuard";
 import { logoutAction } from "@/server/actions";
 import { requireUser } from "@/lib/auth";
 import { teamLabels } from "@/lib/constants";
 import { GlobalMessageAlert } from "@/components/GlobalMessageAlert";
-
-const nav = [
-  ["선적의뢰", "/shipments"],
-  ["입금내역", "/payments"],
-  ["공지", "/notices"],
-  ["달력", "/calendar"]
-];
+import { DropdownCategory, Team } from "@prisma/client";
+import { OVERSEAS_SALES_PROBATION_PART } from "@/lib/overseas-sales-roster";
+import { prisma } from "@/lib/prisma";
+import Link from "next/link";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
+  let showProbationNotice = false;
+  if (user.team === Team.OVERSEAS_SALES) {
+    try {
+      const roster = await prisma.dropdownOption.findFirst({
+        where: { category: DropdownCategory.OVERSEAS_SALES_TEAM, label: user.name },
+        select: { partNo: true }
+      });
+      showProbationNotice = !roster || (roster.partNo ?? OVERSEAS_SALES_PROBATION_PART) === OVERSEAS_SALES_PROBATION_PART;
+    } catch {
+      showProbationNotice = false;
+    }
+  }
+
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white">
-        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6">
-          <nav className="flex items-center gap-2">
-            <Link href="/shipments" className="mr-4 flex items-center">
-              <img src="/logo.png" alt="Shipping Agent" className="h-9 w-9 object-contain" />
-              <span className="ml-2 text-sm font-bold tracking-wide text-slate-900">KUP EXPORTER</span>
-            </Link>
-            {nav.map(([label, href]) => (
-              <Link key={href} href={href} className="rounded-md px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
-                {label}
+      <AppHeaderNav teamLabel={teamLabels[user.team]} userName={user.name} logoutAction={logoutAction} />
+      <GlobalMessageAlert />
+      <OrderUnsavedGuardHost />
+      {showProbationNotice ? (
+        <div className="border-b border-amber-200 bg-amber-50">
+          <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-6 py-3 text-sm text-amber-900">
+            <p>
+              현재 파트가 <strong>수습</strong>입니다.{" "}
+              <Link href="/admin" className="font-semibold underline">
+                관리 &gt; 공통 드롭다운 관리 &gt; 해외영업팀
               </Link>
-            ))}
-          </nav>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-slate-500">
-              {teamLabels[user.team]} · {user.name}
-            </span>
-            <Link aria-label="관리 페이지" href="/admin" className="rounded-md p-2 text-slate-600 hover:bg-slate-100">
-              <Settings size={18} />
-            </Link>
-            <form action={logoutAction}>
-              <button className="text-xs text-slate-500 hover:text-slate-900">로그아웃</button>
-            </form>
+              에서 파트와 우선순위를 수정해주세요.
+            </p>
           </div>
         </div>
-      </header>
-      <GlobalMessageAlert />
+      ) : null}
       <main className="mx-auto max-w-7xl px-6 py-6">{children}</main>
     </div>
   );

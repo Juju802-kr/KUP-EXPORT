@@ -43,6 +43,7 @@ enum DropdownCategory {
   CURRENCY
   FORWARDER
   DEPARTURE_PORT
+  OVERSEAS_SALES_TEAM
 }
 
 enum PaymentLcKind {
@@ -154,6 +155,8 @@ model DropdownOption {
   sortOrder          Int              @default(0)
   destinationCountry String?
   destinationKind    String?
+  partNo             Int?
+  rankNo             Int?
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
   createdById        String?
@@ -161,6 +164,7 @@ model DropdownOption {
 
   @@unique([category, label])
   @@index([category, sortOrder])
+  @@index([category, partNo, rankNo])
 }
 
 model ShipmentRequest {
@@ -482,4 +486,113 @@ model DataLogger {
   updatedAt     DateTime @updatedAt
   createdById   String
   updatedById   String
+}
+
+model OrderEntry {
+  id                  String    @id @default(cuid())
+  salesOwner          String
+  exportCountry       String?
+  buyer               String?
+  piDate              DateTime?
+  piNo                String?
+  productionRequestNo String?
+  productName         String?
+  unitPrice           Decimal   @default(0)
+  quantity            Int       @default(0)
+  focQuantity         Int       @default(0)
+  amount              Decimal   @default(0)
+  incoterms           String?
+  transport           String?
+  destinationPort     String?
+  shipmentLines       Json      @default("[]")
+  paymentLines        Json      @default("[]")
+  note                String?
+  leaderNote          String?
+  leaderPrivateNote   String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  createdById         String
+  updatedById         String
+
+  @@index([salesOwner])
+  @@index([exportCountry])
+  @@index([buyer])
+  @@index([piDate])
+  @@index([piNo])
+  @@index([productionRequestNo])
+}
+
+model OrderLeaderNoteAck {
+  id           String   @id @default(cuid())
+  orderEntryId String
+  userId       String
+  noteSnapshot String
+  showAgain    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([orderEntryId, userId])
+  @@index([userId])
+  @@index([orderEntryId])
+}
+
+model SalesRegistration {
+  id                  String    @id @default(cuid())
+  orderKey            String
+  salesOwner          String
+  exportCountry       String?
+  buyer               String?
+  piNo                String?
+  productionRequestNo String?
+  amount              Decimal   @default(0)
+  registeredAt        DateTime?
+  status              String    @default("REGISTERED")
+  note                String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  createdById         String
+  updatedById         String
+
+  @@unique([orderKey, salesOwner])
+  @@index([salesOwner])
+  @@index([registeredAt])
+  @@index([status])
+}
+
+enum OrderAlertDismissType {
+  PERMANENT
+  LATER
+}
+
+model OrderAlert {
+  id            String    @id @default(cuid())
+  salesOwner    String
+  exportCountry String
+  productName   String
+  content       String
+  cancelledAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  createdById   String
+  updatedById   String
+
+  dismissals OrderAlertDismissal[]
+
+  @@index([salesOwner])
+  @@index([exportCountry, productName])
+}
+
+model OrderAlertDismissal {
+  id           String                @id @default(cuid())
+  orderAlertId String
+  userId       String
+  dismissType  OrderAlertDismissType
+  orderEntryId String?
+  createdAt    DateTime              @default(now())
+
+  orderAlert OrderAlert @relation(fields: [orderAlertId], references: [id], onDelete: Cascade)
+
+  @@index([orderAlertId])
+  @@index([userId])
+  @@index([orderEntryId])
 }
