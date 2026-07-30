@@ -70,8 +70,13 @@ export function AdminClient({
   success?: string;
 }) {
   const exportOwners = users.filter((user) => user.team === Team.OVERSEAS_SALES_SUPPORT);
-  const salesOwners = users.filter((user) => user.team === Team.OVERSEAS_MARKETING || user.team === Team.OVERSEAS_SALES);
-  const salesMailTeams: Team[] = [Team.OVERSEAS_MARKETING, Team.OVERSEAS_SALES, Team.OVERSEAS_BRANCH];
+  const salesOwners = users.filter(
+    (user) =>
+      user.team === Team.OVERSEAS_MARKETING ||
+      user.team === Team.OVERSEAS_SALES ||
+      user.team === Team.OVERSEAS_SALES_SUPPORT
+  );
+  const salesMailTeams: Team[] = [Team.OVERSEAS_MARKETING, Team.OVERSEAS_SALES, Team.OVERSEAS_BRANCH, Team.OVERSEAS_SALES_SUPPORT];
   const salesMailUsers = users.filter((user) => salesMailTeams.includes(user.team));
   const [category, setCategory] = useState<DropdownSection>(DropdownCategory.EXPORT_COUNTRY);
   const [orderedDropdowns, setOrderedDropdowns] = useState(dropdowns);
@@ -208,7 +213,7 @@ export function AdminClient({
 
       <section className="panel p-5">
         <h2 className="text-base font-semibold">바이어 마스터 관리</h2>
-        <p className="mt-1 text-sm text-slate-500">수출 담당자는 해외영업지원팀, 영업메일수신자는 해외마케팅팀/해외영업팀/해외지사 사용자 중 선택합니다.</p>
+        <p className="mt-1 text-sm text-slate-500">수출 담당자는 해외영업지원팀만, 영업담당자·영업메일수신자는 해외마케팅팀/해외영업팀/해외지사/해외영업지원팀 사용자 중 선택합니다.</p>
         <form key={buyerFormKey} action={createBuyer} className="mt-4 grid grid-cols-[190px_170px_110px_135px_135px_minmax(210px,1fr)_120px] items-start gap-2">
           <CountryCombobox name="exportCountry" countries={countries} />
           <input className="h-11" name="buyerName" placeholder="바이어명" required />

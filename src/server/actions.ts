@@ -1461,7 +1461,7 @@ export async function deleteShipmentSummaryDefaultNoteAction(formData: FormData)
 }
 
 const noticeMailTeams: Team[] = [Team.OVERSEAS_MARKETING, Team.OVERSEAS_SALES, Team.OVERSEAS_SALES_SUPPORT];
-const salesMailTeams: Team[] = [Team.OVERSEAS_MARKETING, Team.OVERSEAS_SALES, Team.OVERSEAS_BRANCH];
+const salesMailTeams: Team[] = [Team.OVERSEAS_MARKETING, Team.OVERSEAS_SALES, Team.OVERSEAS_BRANCH, Team.OVERSEAS_SALES_SUPPORT];
 const exportOwnerTeams: Team[] = [Team.OVERSEAS_SALES_SUPPORT];
 
 function noticeMailTargetTeams(targetTeams: string[]) {

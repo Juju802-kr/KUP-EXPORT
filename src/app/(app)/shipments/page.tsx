@@ -140,7 +140,7 @@ export default async function ShipmentsPage({ searchParams }: { searchParams: Pr
       }));
     }),
     salesOwners: uniqueValues([
-      ...users.filter((item) => item.team === Team.OVERSEAS_MARKETING || item.team === Team.OVERSEAS_SALES).map((item) => item.name),
+      ...users.filter((item) => item.team === Team.OVERSEAS_MARKETING || item.team === Team.OVERSEAS_SALES || item.team === Team.OVERSEAS_SALES_SUPPORT).map((item) => item.name),
       ...shipments.map((shipment) => shipment.salesOwner)
     ]),
     exportOwners: uniqueValues([

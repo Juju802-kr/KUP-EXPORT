@@ -165,7 +165,7 @@ export function PaymentClient({
 }) {
   const searchParams = useSearchParams();
   const editId = searchParams.get("edit");
-  const salesOwners = users.filter((user) => user.team === Team.OVERSEAS_MARKETING || user.team === Team.OVERSEAS_SALES);
+  const salesOwners = users.filter((user) => user.team === Team.OVERSEAS_MARKETING || user.team === Team.OVERSEAS_SALES || user.team === Team.OVERSEAS_SALES_SUPPORT);
   const exportOwners = users.filter((user) => user.team === Team.OVERSEAS_SALES_SUPPORT);
 
   return mode === "tt" ? (
