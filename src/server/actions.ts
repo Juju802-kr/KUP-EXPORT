@@ -689,10 +689,11 @@ async function findTriggeredOrderAlerts(
         continue;
       }
 
-      const hasPermanent = alert.dismissals.some((item) => item.dismissType === OrderAlertDismissType.PERMANENT);
+      const dismissals = alert.dismissals ?? [];
+      const hasPermanent = dismissals.some((item) => item.dismissType === OrderAlertDismissType.PERMANENT);
       if (hasPermanent) continue;
 
-      const snoozedForEntry = alert.dismissals.some(
+      const snoozedForEntry = dismissals.some(
         (item) => item.dismissType === OrderAlertDismissType.LATER && item.orderEntryId === entry.id
       );
       if (snoozedForEntry) continue;

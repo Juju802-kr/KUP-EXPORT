@@ -36,7 +36,8 @@ const options: Record<DropdownCategory, string[]> = {
   BANK: ["\uAD6D\uBBFC\uC740\uD589", "\uC2E0\uD55C\uC740\uD589", "\uD558\uB098\uC740\uD589", "\uC6B0\uB9AC\uC740\uD589"],
   CURRENCY: ["USD", "EUR", "KRW"],
   FORWARDER: ["DHL", "KWE", "판토스"],
-  DEPARTURE_PORT: ["인천공항", "부산항", "평택항"]
+  DEPARTURE_PORT: ["인천공항", "부산항", "평택항"],
+  OVERSEAS_SALES_TEAM: []
 };
 
 async function main() {

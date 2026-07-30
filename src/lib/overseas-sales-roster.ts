@@ -5,8 +5,8 @@ export const OVERSEAS_SALES_ALL_OWNER = "해외영업 전체";
 export type OverseasSalesMember = {
   id?: string;
   label: string;
-  partNo: number | null;
-  rankNo: number | null;
+  partNo?: number | null;
+  rankNo?: number | null;
   sortOrder?: number;
 };
 

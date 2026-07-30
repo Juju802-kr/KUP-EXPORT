@@ -29,7 +29,9 @@ export function getPendingOrderNavigation() {
 
 export function subscribeOrderUnsavedGuard(listener: () => void) {
   listeners.add(listener);
-  return () => listeners.delete(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 }
 
 export function clearPendingOrderNavigation() {
