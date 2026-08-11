@@ -77,13 +77,13 @@ export function SearchableCombobox({
   const uniqueOptions = useMemo(() => {
     const seen = new Set<string>();
     return options.filter((option) => {
-      const key = `${option.value}\u0000${option.label}`;
+      const key = option.id || `${option.value}\u0000${option.label}`;
       if (seen.has(key)) return false;
       seen.add(key);
-      return option.value || option.label;
+      return Boolean(option.value || option.label);
     });
   }, [options]);
-  const filtered = uniqueOptions.filter((option) => matches(option, inputValue)).slice(0, 30);
+  const filtered = uniqueOptions.filter((option) => matches(option, inputValue));
   const selectedOption = uniqueOptions.find((option) => option.value === currentValue);
 
   useEffect(() => {
@@ -238,14 +238,15 @@ export function SearchableCombobox({
         disabled={disabled}
         onChange={(event) => handleInput(event.target.value)}
         onFocus={() => {
-          if (!disabled) {
-            setOpen(true);
-            updateMenuRect();
-          }
+          if (disabled) return;
+          // Clear the search filter on open so the full registered list is browsable.
+          setInputValue("");
+          setOpen(true);
+          updateMenuRect();
         }}
         onBlur={() => {
           window.setTimeout(() => {
-            if (registeredOnly) revertInput();
+            revertInput();
           }, 120);
         }}
         onKeyDown={handleKeyDown}
@@ -262,7 +263,12 @@ export function SearchableCombobox({
         onClick={() => {
           setOpen((current) => {
             const next = !current;
-            if (next) updateMenuRect();
+            if (next) {
+              setInputValue("");
+              updateMenuRect();
+            } else {
+              revertInput();
+            }
             return next;
           });
         }}

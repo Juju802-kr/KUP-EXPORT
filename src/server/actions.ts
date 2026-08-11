@@ -260,10 +260,14 @@ export async function createShipmentAction(formData: FormData) {
       salesEmailRecipients: true
     }
   });
-  const buyerMaster = findRegisteredBuyer(buyer, buyers);
+  const exportCountryHint = formString(formData, "exportCountry");
+  const buyerMaster =
+    (exportCountryHint
+      ? buyers.find((item) => item.buyerName === buyer && item.exportCountry === exportCountryHint)
+      : undefined) ?? findRegisteredBuyer(buyer, buyers);
   const resolvedBuyer = buyerMaster?.buyerName || buyer;
 
-  const salesOwner = formString(formData, "salesOwner") || buyerMaster?.salesOwner || "";
+  const salesOwner = formString(formData, "salesOwner") || buyerMaster?.salesOwner || user.name;
   if (!salesOwner) {
     fail(failPath, "영업담당자를 선택해주세요. 바이어 마스터에 영업담당자를 등록했는지 확인해 주세요.");
   }

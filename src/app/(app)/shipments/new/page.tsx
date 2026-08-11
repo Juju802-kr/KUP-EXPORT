@@ -11,7 +11,7 @@ export default async function NewShipmentPage({
   const params = await searchParams;
   const [dropdowns, buyers] = await Promise.all([
     prisma.dropdownOption.findMany({ orderBy: [{ category: "asc" }, { sortOrder: "asc" }] }),
-    prisma.buyerMaster.findMany({ orderBy: { buyerName: "asc" } })
+    prisma.buyerMaster.findMany({ orderBy: [{ exportCountry: "asc" }, { buyerName: "asc" }] })
   ]);
   const options = Object.fromEntries(
     Object.values(DropdownCategory).map((category) => [category, dropdowns.filter((option) => option.category === category)])

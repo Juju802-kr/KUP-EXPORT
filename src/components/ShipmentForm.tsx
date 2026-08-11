@@ -99,7 +99,15 @@ export function ShipmentForm({
   }
 
   function applyBuyer(value: string) {
-    const selected = findRegisteredBuyer(value, buyers);
+    const byId = buyers.find((item) => item.id === value);
+    if (byId) {
+      applyBuyerMaster(byId, { forceCountry: true, forceCurrency: true });
+      return;
+    }
+    const selected =
+      (exportCountry.trim()
+        ? buyers.find((item) => item.buyerName === value && item.exportCountry === exportCountry.trim())
+        : undefined) ?? findRegisteredBuyer(value, buyers);
     if (selected) {
       applyBuyerMaster(selected, { forceCountry: true, forceCurrency: true });
       return;
@@ -215,15 +223,34 @@ function Field({ label, compact = false, children }: { label: ReactNode; compact
 }
 
 function BuyerSelect({ buyers, value, onChange }: { buyers: BuyerOption[]; value: string; onChange: (value: string) => void }) {
+  const selected =
+    buyers.find((buyer) => buyer.id === value) ||
+    buyers.find((buyer) => buyer.buyerName === value) ||
+    findRegisteredBuyer(value, buyers) ||
+    null;
+  const selectedId = selected?.id ?? "";
+
   return (
     <Field label="바이어">
+      <input type="hidden" name="buyer" value={selected?.buyerName || value} required />
       <SearchableCombobox
-        name="buyer"
-        value={value}
+        name="buyerPicker"
+        value={selectedId}
         onChange={onChange}
         placeholder="바이어 선택"
-        required
-        options={buyers.map((buyer) => ({ id: buyer.id, value: buyer.buyerName, label: buyer.buyerName }))}
+        required={!selectedId && !value}
+        useHiddenName
+        displayValue={(id) => {
+          const buyer = buyers.find((item) => item.id === id) ?? selected;
+          if (!buyer) return value;
+          return buyer.exportCountry ? `${buyer.buyerName} · ${buyer.exportCountry}` : buyer.buyerName;
+        }}
+        options={buyers.map((buyer) => ({
+          id: buyer.id,
+          value: buyer.id,
+          label: buyer.exportCountry ? `${buyer.buyerName} · ${buyer.exportCountry}` : buyer.buyerName,
+          searchText: `${buyer.buyerName} ${buyer.exportCountry}`
+        }))}
       />
     </Field>
   );
