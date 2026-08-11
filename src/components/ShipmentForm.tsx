@@ -74,6 +74,7 @@ export function ShipmentForm({
   const action = isEdit ? updateShipmentAction : createShipmentAction;
   const destinationRegistry = useMemo(() => buildDestinationRegistry(destinationPorts), [destinationPorts]);
   const [buyer, setBuyer] = useState(shipment?.buyer ?? "");
+  const [buyerId, setBuyerId] = useState("");
   const [salesOwner, setSalesOwner] = useState(shipment?.salesOwner ?? "");
   const [exportCountry, setExportCountry] = useState(shipment?.exportCountry ?? "");
   const [currency, setCurrency] = useState(shipment?.currency ?? "USD");
@@ -87,6 +88,7 @@ export function ShipmentForm({
   function applyBuyerMaster(selected: BuyerOption | null | undefined, options?: { forceCountry?: boolean; forceCurrency?: boolean }) {
     if (!selected) return;
     setBuyer(selected.buyerName);
+    setBuyerId(selected.id);
     setSalesOwner(selected.salesOwner ?? "");
     setExportOwner(selected.exportOwner ?? "");
     setSalesEmailRecipients(selected.salesEmailRecipients ?? "");
@@ -99,26 +101,24 @@ export function ShipmentForm({
   }
 
   function applyBuyer(value: string) {
+    if (!value.trim()) {
+      setBuyer("");
+      setBuyerId("");
+      return;
+    }
     const byId = buyers.find((item) => item.id === value);
     if (byId) {
       applyBuyerMaster(byId, { forceCountry: true, forceCurrency: true });
-      return;
     }
-    const selected =
-      (exportCountry.trim()
-        ? buyers.find((item) => item.buyerName === value && item.exportCountry === exportCountry.trim())
-        : undefined) ?? findRegisteredBuyer(value, buyers);
-    if (selected) {
-      applyBuyerMaster(selected, { forceCountry: true, forceCurrency: true });
-      return;
-    }
-    setBuyer(value);
   }
 
   useEffect(() => {
     const draftBuyer = shipment?.buyer?.trim();
     if (!draftBuyer) return;
-    const selected = findRegisteredBuyer(draftBuyer, buyers);
+    const selected =
+      (shipment?.exportCountry
+        ? buyers.find((item) => item.buyerName === draftBuyer && item.exportCountry === shipment.exportCountry)
+        : undefined) ?? findRegisteredBuyer(draftBuyer, buyers);
     if (!selected) return;
     applyBuyerMaster(selected, {
       forceCountry: !shipment?.exportCountry,
@@ -148,7 +148,7 @@ export function ShipmentForm({
       <Box title="선적 의뢰란" columns={1}>
         <FormRow columns={3}>
           <Select label="수출국" name="exportCountry" value={exportCountry} onChange={setExportCountry} options={options.EXPORT_COUNTRY} />
-          <BuyerSelect buyers={buyers} value={buyer} onChange={applyBuyer} />
+          <BuyerSelect buyers={buyers} value={buyer} selectedId={buyerId} onChange={applyBuyer} />
           <Select label="보관조건" name="storageCondition" defaultValue={shipment?.storageCondition} options={options.STORAGE_CONDITION} />
         </FormRow>
         <FormRow columns={3}>
@@ -222,27 +222,37 @@ function Field({ label, compact = false, children }: { label: ReactNode; compact
   );
 }
 
-function BuyerSelect({ buyers, value, onChange }: { buyers: BuyerOption[]; value: string; onChange: (value: string) => void }) {
+function BuyerSelect({
+  buyers,
+  value,
+  selectedId,
+  onChange
+}: {
+  buyers: BuyerOption[];
+  value: string;
+  selectedId: string;
+  onChange: (value: string) => void;
+}) {
   const selected =
-    buyers.find((buyer) => buyer.id === value) ||
+    buyers.find((buyer) => buyer.id === selectedId) ||
     buyers.find((buyer) => buyer.buyerName === value) ||
-    findRegisteredBuyer(value, buyers) ||
     null;
-  const selectedId = selected?.id ?? "";
+  const resolvedId = selected?.id ?? "";
 
   return (
     <Field label="바이어">
       <input type="hidden" name="buyer" value={selected?.buyerName || value} required />
       <SearchableCombobox
         name="buyerPicker"
-        value={selectedId}
+        value={resolvedId}
         onChange={onChange}
         placeholder="바이어 선택"
-        required={!selectedId && !value}
+        required={!resolvedId && !value}
+        registeredOnly
         useHiddenName
         displayValue={(id) => {
           const buyer = buyers.find((item) => item.id === id) ?? selected;
-          if (!buyer) return value;
+          if (!buyer) return "";
           return buyer.exportCountry ? `${buyer.buyerName} · ${buyer.exportCountry}` : buyer.buyerName;
         }}
         options={buyers.map((buyer) => ({
