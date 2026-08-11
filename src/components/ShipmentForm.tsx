@@ -252,8 +252,7 @@ function BuyerSelect({
         useHiddenName
         displayValue={(id) => {
           const buyer = buyers.find((item) => item.id === id) ?? selected;
-          if (!buyer) return "";
-          return buyer.exportCountry ? `${buyer.buyerName} · ${buyer.exportCountry}` : buyer.buyerName;
+          return buyer?.buyerName ?? "";
         }}
         options={buyers.map((buyer) => ({
           id: buyer.id,
