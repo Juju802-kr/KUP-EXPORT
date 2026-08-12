@@ -215,16 +215,16 @@ export function ShipmentSummaryClient({
         </div>
       </div>
 
-      <header className="flex items-start justify-between gap-4 border-b-2 border-slate-900 pb-4">
-        <div>
+      <header className="flex items-center justify-between gap-4 border-b-2 border-slate-900 pb-4">
+        <div className="min-w-0">
           <h1 className="text-3xl font-bold tracking-tight text-[#1a237e]">선적상세정보</h1>
           <p className="mt-1 text-xs font-medium uppercase tracking-[0.14em] text-slate-500">
             SHIPMENT DETAIL INFORMATION
           </p>
         </div>
-        <div className="min-w-[200px] rounded-md border-2 border-[#90caf9] bg-[#e3f2fd] px-4 py-3 text-right">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">INV. No.</p>
-          <p className="mt-1 text-lg font-bold text-[#1565c0]">{shipment.invNo || "-"}</p>
+        <div className="flex h-[4.25rem] shrink-0 items-center gap-2 whitespace-nowrap rounded-md border-2 border-[#90caf9] bg-[#e3f2fd] px-4">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">INV. No.</span>
+          <span className="text-lg font-bold text-[#1565c0]">{shipment.invNo || "-"}</span>
         </div>
       </header>
 
@@ -309,7 +309,7 @@ export function ShipmentSummaryClient({
         <div className="flex items-center justify-between gap-3 bg-[#5d4037] px-3 py-2 text-white">
           <div className="flex items-center gap-2">
             <h2 className="text-sm font-bold">4. 특이사항</h2>
-            <span className="hidden text-[10px] font-medium uppercase tracking-wide text-amber-100 sm:inline">
+            <span className="text-[10px] font-medium uppercase tracking-wide text-amber-100">
               SPECIAL INSTRUCTIONS
             </span>
           </div>
@@ -363,14 +363,17 @@ export function ShipmentSummaryClient({
           ) : null}
         </div>
 
-        <div className="bg-[#fffde7] p-3">
+        <div className={`bg-[#fffde7] ${specialNotes.trim() ? "p-3" : "p-2 print:py-1.5"}`}>
           <textarea
             value={specialNotes}
             onChange={(event) => setSpecialNotes(event.target.value)}
-            rows={8}
-            className="min-h-40 w-full resize-y rounded-md border border-amber-200 bg-white px-3 py-2 text-sm leading-6 text-slate-900 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 print:border-0 print:bg-transparent print:p-0 print:ring-0"
+            rows={Math.max(2, specialNotes.split("\n").length)}
+            className="no-print w-full resize-y rounded-md border border-amber-200 bg-white px-3 py-2 text-sm leading-6 text-slate-900 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
             placeholder="특이사항을 입력하거나, 위 기본 특이사항을 클릭해 추가하세요."
           />
+          <div className="hidden whitespace-pre-wrap text-sm leading-6 text-slate-900 print:block">
+            {specialNotes.trim() ? specialNotes : <span className="text-slate-400">-</span>}
+          </div>
         </div>
       </section>
 
@@ -378,7 +381,16 @@ export function ShipmentSummaryClient({
         @media print {
           body { background: white !important; }
           .no-print { display: none !important; }
-          .summary-doc { max-width: none !important; padding: 0 !important; }
+          .summary-doc {
+            max-width: none !important;
+            padding: 0 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .summary-doc * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
         }
       `}</style>
     </div>
@@ -398,7 +410,7 @@ function Section({ title, english, children }: { title: string; english: string;
 }
 
 function Grid({ children }: { children: ReactNode }) {
-  return <div className="grid grid-cols-1 border-b border-slate-200 last:border-b-0 sm:grid-cols-2">{children}</div>;
+  return <div className="grid grid-cols-2 border-b border-slate-200 last:border-b-0">{children}</div>;
 }
 
 function Field({
@@ -415,7 +427,7 @@ function Field({
   badgeClassName?: string;
 }) {
   return (
-    <div className={`grid grid-cols-[140px_1fr] border-slate-200 sm:border-r sm:last:border-r-0 ${wide ? "sm:col-span-2" : ""}`}>
+    <div className={`grid grid-cols-[140px_1fr] border-slate-200 border-r last:border-r-0 ${wide ? "col-span-2 border-r-0" : ""}`}>
       <div className="bg-[#e8eaf6] px-3 py-2.5 text-xs font-semibold text-slate-700">{label}</div>
       <div className="px-3 py-2.5 text-sm font-medium text-slate-900">
         {badge && value && value !== "-" ? (
@@ -444,15 +456,16 @@ function EditableField({
   wide?: boolean;
 }) {
   return (
-    <div className={`grid grid-cols-[140px_1fr] border-slate-200 sm:border-r sm:last:border-r-0 ${wide ? "sm:col-span-2" : ""}`}>
+    <div className={`grid grid-cols-[140px_1fr] border-r border-slate-200 last:border-r-0 ${wide ? "col-span-2 border-r-0" : ""}`}>
       <div className="bg-[#e8eaf6] px-3 py-2.5 text-xs font-semibold text-slate-700">{label}</div>
-      <div className="px-2 py-1.5">
+      <div className="px-3 py-2.5 text-sm font-medium text-slate-900">
         <input
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder={placeholder}
-          className="h-9 w-full rounded border border-transparent bg-transparent px-1 text-sm font-medium text-slate-900 outline-none hover:border-slate-200 focus:border-blue-400 focus:bg-white print:border-0"
+          className="no-print h-6 w-full border-0 bg-transparent p-0 text-sm font-medium text-slate-900 outline-none ring-0 placeholder:text-slate-300"
         />
+        <span className="hidden print:inline">{value.trim() || "-"}</span>
       </div>
     </div>
   );
@@ -472,10 +485,10 @@ function SelectField({
   wide?: boolean;
 }) {
   return (
-    <div className={`grid grid-cols-[140px_1fr] border-slate-200 ${wide ? "sm:col-span-2" : ""}`}>
+    <div className={`grid grid-cols-[140px_1fr] border-slate-200 ${wide ? "col-span-2" : ""}`}>
       <div className="bg-[#e8eaf6] px-3 py-2.5 text-xs font-semibold text-slate-700">{label}</div>
-      <div className="px-2 py-1.5">
-        <div className="no-print flex flex-wrap gap-4 px-1 py-1">
+      <div className="px-3 py-2.5">
+        <div className="no-print flex flex-wrap gap-4">
           {options.map((option) => (
             <label key={option} className="inline-flex items-center gap-2 text-sm font-medium text-slate-800">
               <input
@@ -490,7 +503,7 @@ function SelectField({
             </label>
           ))}
         </div>
-        <p className="hidden px-1 text-sm font-medium text-slate-900 print:block">{value || "-"}</p>
+        <p className="hidden text-sm font-medium text-slate-900 print:block">{value || "-"}</p>
       </div>
     </div>
   );
