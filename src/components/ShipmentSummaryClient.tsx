@@ -155,7 +155,7 @@ export function ShipmentSummaryClient({
     const formData = new FormData();
     formData.set("id", shipment.id);
     formData.set("summaryDataLogger", dataLogger);
-    formData.set("summaryDataLoggerDetail", dataLoggerDetail);
+    formData.set("summaryDataLoggerDetail", dataLogger === "X" ? "" : dataLoggerDetail);
     formData.set("summaryShippingLabelMethod", shippingLabelMethod);
     formData.set("summarySpecialNotes", specialNotes);
     startTransition(async () => {
@@ -245,15 +245,17 @@ export function ShipmentSummaryClient({
           />
           <Field label="데이터로거" value={dataLogger || "-"} />
         </Grid>
-        <div className="mt-0 border-t border-slate-200">
-          <EditableField
-            label="데이터로거 상세"
-            value={dataLoggerDetail}
-            onChange={setDataLoggerDetail}
-            placeholder="수기입력"
-            wide
-          />
-        </div>
+        {dataLogger !== "X" ? (
+          <div className="mt-0 border-t border-slate-200">
+            <EditableField
+              label="데이터로거 상세"
+              value={dataLoggerDetail}
+              onChange={setDataLoggerDetail}
+              placeholder="수기입력"
+              wide
+            />
+          </div>
+        ) : null}
       </Section>
 
       <Section title="3. 제품 정보" english="PRODUCT INFORMATION">
@@ -413,6 +415,10 @@ function Grid({ children }: { children: ReactNode }) {
   return <div className="grid grid-cols-2 border-b border-slate-200 last:border-b-0">{children}</div>;
 }
 
+function labelCellClass() {
+  return "flex items-center justify-center bg-[#e8eaf6] px-2 py-2.5 text-center text-xs font-semibold text-slate-700";
+}
+
 function Field({
   label,
   value,
@@ -427,9 +433,9 @@ function Field({
   badgeClassName?: string;
 }) {
   return (
-    <div className={`grid grid-cols-[140px_1fr] border-slate-200 border-r last:border-r-0 ${wide ? "col-span-2 border-r-0" : ""}`}>
-      <div className="bg-[#e8eaf6] px-3 py-2.5 text-xs font-semibold text-slate-700">{label}</div>
-      <div className="px-3 py-2.5 text-sm font-medium text-slate-900">
+    <div className={`grid grid-cols-[140px_1fr] border-r border-slate-200 last:border-r-0 ${wide ? "col-span-2 border-r-0" : ""}`}>
+      <div className={labelCellClass()}>{label}</div>
+      <div className="flex items-center px-3 py-2.5 text-sm font-medium text-slate-900">
         {badge && value && value !== "-" ? (
           <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold ${badgeClassName}`}>
             {value}
@@ -457,8 +463,8 @@ function EditableField({
 }) {
   return (
     <div className={`grid grid-cols-[140px_1fr] border-r border-slate-200 last:border-r-0 ${wide ? "col-span-2 border-r-0" : ""}`}>
-      <div className="bg-[#e8eaf6] px-3 py-2.5 text-xs font-semibold text-slate-700">{label}</div>
-      <div className="px-3 py-2.5 text-sm font-medium text-slate-900">
+      <div className={labelCellClass()}>{label}</div>
+      <div className="flex items-center px-3 py-2.5 text-sm font-medium text-slate-900">
         <input
           value={value}
           onChange={(event) => onChange(event.target.value)}
@@ -486,8 +492,8 @@ function SelectField({
 }) {
   return (
     <div className={`grid grid-cols-[140px_1fr] border-slate-200 ${wide ? "col-span-2" : ""}`}>
-      <div className="bg-[#e8eaf6] px-3 py-2.5 text-xs font-semibold text-slate-700">{label}</div>
-      <div className="px-3 py-2.5">
+      <div className={labelCellClass()}>{label}</div>
+      <div className="flex items-center px-3 py-2.5">
         <div className="no-print flex flex-wrap gap-4">
           {options.map((option) => (
             <label key={option} className="inline-flex items-center gap-2 text-sm font-medium text-slate-800">
