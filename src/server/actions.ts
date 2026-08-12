@@ -10,6 +10,7 @@ import { fmtDate } from "@/lib/constants";
 import { sendOrLogEmail } from "@/lib/mail";
 import {
   attachmentNameWithOriginalExtension,
+  paymentLcAttachmentBaseName,
   paymentTtAttachmentBaseName
 } from "@/lib/payment-attachment-name";
 import { orderMatchesAlert } from "@/lib/order-alert-matching";
@@ -1507,6 +1508,7 @@ export async function uploadPaymentLCConfirmAttachmentsAction(formData: FormData
 
   try {
     await saveAttachments(files, "PAYMENT_LC", paymentLcConfirmOwnerId(id), user.id);
+    await renamePaymentLcAttachments(id);
   } catch (error) {
     return {
       ok: false as const,
@@ -1528,6 +1530,7 @@ async function savePaymentLC(formData: FormData, intent: string) {
     savePaymentLCAllocations(payment.id, allocations),
     saveAttachments(formData.getAll("files").filter((f): f is File => f instanceof File), "PAYMENT_LC", payment.id, user.id)
   ]);
+  await renamePaymentLcAttachments(payment.id);
   await autoLinkLcToShipments(payment.id, user.id);
   if (intent === "notify") emailQueueRedirect("/payments?tab=lc", () => sendPaymentLcNotifyMail(payment.id, user.id));
   if (intent === "confirm") emailQueueRedirect("/payments?tab=lc", () => sendPaymentLcConfirmMail(payment.id, user.id));
@@ -1684,6 +1687,41 @@ async function renamePaymentTtAttachments(paymentId: string) {
       data: { originalName: attachmentNameWithOriginalExtension(baseName, attachment.originalName) }
     })
   ));
+}
+
+async function renamePaymentLcAttachments(paymentId: string) {
+  const confirmOwnerId = paymentLcConfirmOwnerId(paymentId);
+  const [payment, attachments] = await Promise.all([
+    prisma.paymentLC.findUnique({
+      where: { id: paymentId },
+      include: { allocations: { orderBy: { sortOrder: "asc" } } }
+    }),
+    prisma.attachment.findMany({
+      where: {
+        ownerType: "PAYMENT_LC",
+        ownerId: { in: [paymentId, confirmOwnerId] }
+      }
+    })
+  ]);
+  if (!payment || !attachments.length) return;
+  const baseName = paymentLcAttachmentBaseName({
+    date: payment.noticeDate,
+    buyer: payment.buyer,
+    currency: payment.currency,
+    amount: payment.amount,
+    productionRequestNo: payment.productionRequestNo,
+    note: payment.note,
+    allocations: payment.allocations
+  });
+  if (!baseName) return;
+  await prisma.$transaction(
+    attachments.map((attachment) =>
+      prisma.attachment.update({
+        where: { id: attachment.id },
+        data: { originalName: attachmentNameWithOriginalExtension(baseName, attachment.originalName) }
+      })
+    )
+  );
 }
 
 export async function deletePaymentAction(formData: FormData) {

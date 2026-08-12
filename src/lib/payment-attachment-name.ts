@@ -92,7 +92,8 @@ export function paymentLcAttachmentBaseName(source: PaymentAttachmentNameSource)
   const allocations = effectiveAllocations(source);
   const details = allocations.flatMap((row) => [
     compact(row.productionRequestNo),
-    money(row.amount, source.currency)
+    money(row.amount, source.currency),
+    compact(row.note)
   ]);
   return safeFileBase([
     yymmdd(source.date),
