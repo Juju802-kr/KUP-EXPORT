@@ -20,6 +20,7 @@ export type OrderRowShipmentSource = {
   transport?: string;
   destinationPort?: string;
   paymentTerm?: string;
+  shipments?: Array<{ quantity?: number; focQuantity?: number }>;
 };
 
 export type ShipmentOrderProductDraft = {
@@ -44,6 +45,24 @@ export type ShipmentOrderDraft = {
 };
 
 const DRAFT_PREFIX = "kup-shipment-draft:";
+
+export function shippedOrderQuantityTotal(row: { shipments?: Array<{ quantity?: number }> }) {
+  return (row.shipments ?? []).reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+}
+
+export function shippedOrderFocQuantityTotal(row: { shipments?: Array<{ focQuantity?: number }> }) {
+  return (row.shipments ?? []).reduce((sum, item) => sum + (Number(item.focQuantity) || 0), 0);
+}
+
+/** Allow another shipment request while shipped paid qty is still below order qty. */
+export function canCreateShipmentFromOrder(row: {
+  quantity?: number;
+  shipments?: Array<{ quantity?: number }>;
+}) {
+  if (!(row.shipments?.length)) return true;
+  const orderQty = Number(row.quantity) || 0;
+  return shippedOrderQuantityTotal(row) < orderQty;
+}
 
 export function orderRowToProductDraft(
   row: OrderRowShipmentSource,
@@ -78,11 +97,15 @@ export function mapOrderBoardRowToShipmentSource(
   row: OrderRowShipmentSource,
   countryFallback = ""
 ): OrderRowShipmentSource {
+  const remainingQuantity = Math.max(0, (Number(row.quantity) || 0) - shippedOrderQuantityTotal(row));
+  const remainingFoc = Math.max(0, (Number(row.orderFocQuantity) || 0) - shippedOrderFocQuantityTotal(row));
   return {
     ...row,
     exportCountry: (row.exportCountry || countryFallback).trim(),
     buyer: row.buyer.trim(),
     currency: row.currency || "USD",
+    quantity: remainingQuantity,
+    orderFocQuantity: remainingFoc,
     incoterms: row.incoterms?.trim() || "",
     transport: row.transport?.trim() || "",
     destinationPort: row.destinationPort?.trim() || "",

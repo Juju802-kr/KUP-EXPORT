@@ -10,7 +10,7 @@ import { registerOrderUnsavedGuard } from "@/lib/order-unsaved-guard";
 import { dedupeBoardPayments, reconcileBoardShipments, normalizeLedgerDate, normalizeOrderRef, compareOrdersByPiSequence } from "@/lib/order-board-linking";
 import { type RegisteredDestination } from "@/lib/destination-registry";
 import { type ExportProductOption } from "@/lib/order-pi-import";
-import { openCombinedShipmentFromOrders, openIndividualShipmentsFromOrders } from "@/lib/shipment-order-draft";
+import { openCombinedShipmentFromOrders, openIndividualShipmentsFromOrders, canCreateShipmentFromOrder } from "@/lib/shipment-order-draft";
 
 export type OrderBoardRow = {
   key: string;
@@ -1621,7 +1621,7 @@ export function OrderCountryBoard({
       {orderedBuyerEntries.map(([buyer, buyerRows]) => {
         const open = openBuyers.includes(buyer);
         const buyerSelected = buyerRows.filter((row) => selected.includes(row.key));
-        const shipmentEligible = buyerSelected.filter((row) => !row.shipments.length);
+        const shipmentEligible = buyerSelected.filter((row) => canCreateShipmentFromOrder(row));
         const canCreateShipment = shipmentEligible.length > 0 && shipmentEligible.length === buyerSelected.length;
         return (
           <section
@@ -1693,7 +1693,7 @@ export function OrderCountryBoard({
                         type="button"
                         className="btn px-2 py-1 text-xs"
                         disabled
-                        title="선적이 없는 오더만 선택했을 때 사용할 수 있습니다"
+                        title="선적 수량 합이 오더량 미만인 오더만 선택했을 때 사용할 수 있습니다"
                       >
                         선적의뢰
                       </button>
