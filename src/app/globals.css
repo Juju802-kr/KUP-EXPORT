@@ -168,11 +168,13 @@ label {
   border-radius: 999px;
 }
 
-.ocb-frozen-rows tr {
+.ocb-frozen-rows tr,
+.ocb-scroll-rows tr {
   height: 1px;
 }
 
-.ocb-frozen-rows td {
+.ocb-frozen-rows td,
+.ocb-scroll-rows td {
   box-sizing: border-box;
 }
 

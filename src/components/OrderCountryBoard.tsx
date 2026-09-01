@@ -893,6 +893,54 @@ function SyncedHorizontalScrollbar({ targetRef }: { targetRef: RefObject<HTMLDiv
   );
 }
 
+function applyOrderRowHeight(row: HTMLTableRowElement, height: number) {
+  row.style.height = `${height}px`;
+  row.querySelectorAll<HTMLTableCellElement>("th, td").forEach((cell) => {
+    cell.style.height = `${height}px`;
+  });
+}
+
+function resetOrderRowHeight(row: HTMLTableRowElement) {
+  row.style.height = "";
+  row.querySelectorAll<HTMLTableCellElement>("th, td").forEach((cell) => {
+    cell.style.height = "";
+  });
+}
+
+function syncPairedOrderRowHeights(leftRows: HTMLTableRowElement[], rightRows: HTMLTableRowElement[]) {
+  const rightByKey = new Map(
+    rightRows
+      .map((row) => [row.dataset.orderRow || "", row] as const)
+      .filter(([key]) => key)
+  );
+
+  const pairs: Array<[HTMLTableRowElement, HTMLTableRowElement]> = [];
+  if (rightByKey.size) {
+    for (const leftRow of leftRows) {
+      const key = leftRow.dataset.orderRow || "";
+      const rightRow = key ? rightByKey.get(key) : undefined;
+      if (rightRow) pairs.push([leftRow, rightRow]);
+    }
+  } else {
+    const count = Math.min(leftRows.length, rightRows.length);
+    for (let index = 0; index < count; index += 1) {
+      pairs.push([leftRows[index], rightRows[index]]);
+    }
+  }
+
+  for (const [leftRow, rightRow] of pairs) {
+    resetOrderRowHeight(leftRow);
+    resetOrderRowHeight(rightRow);
+  }
+
+  for (const [leftRow, rightRow] of pairs) {
+    const height = Math.max(leftRow.offsetHeight, rightRow.offsetHeight);
+    if (height < 1) continue;
+    applyOrderRowHeight(leftRow, height);
+    applyOrderRowHeight(rightRow, height);
+  }
+}
+
 function BuyerOrderScrollPane({
   frozenHeader,
   scrollableHeader,
@@ -930,27 +978,23 @@ function BuyerOrderScrollPane({
   };
 
   const syncRowHeights = useCallback(() => {
-    const frozenBody = shellRef.current?.querySelector("[data-frozen-body] tbody");
-    const scrollBody = horizontalScrollRef.current?.querySelector("tbody");
-    if (!frozenBody || !scrollBody) return;
+    const frozenRoot = shellRef.current?.querySelector("[data-frozen-body]");
+    const frozenHeader = shellRef.current?.querySelector("[data-frozen-header]");
+    const scrollRoot = horizontalScrollRef.current;
+    const headerScroll = headerHorizontalScrollRef.current;
+    if (!frozenRoot || !scrollRoot) return;
 
-    const frozenRows = frozenBody.querySelectorAll<HTMLTableRowElement>("tr");
-    const scrollRows = scrollBody.querySelectorAll<HTMLTableRowElement>("tr");
+    syncPairedOrderRowHeights(
+      [...frozenRoot.querySelectorAll<HTMLTableRowElement>("tbody tr")],
+      [...scrollRoot.querySelectorAll<HTMLTableRowElement>("tbody tr")]
+    );
 
-    scrollRows.forEach((scrollRow, index) => {
-      const frozenRow = frozenRows[index];
-      if (!frozenRow) return;
-      frozenRow.style.height = "auto";
-      frozenRow.querySelectorAll<HTMLTableCellElement>("td").forEach((cell) => {
-        cell.style.height = "auto";
-      });
-      const height = scrollRow.getBoundingClientRect().height;
-      if (height < 1) return;
-      frozenRow.style.height = `${height}px`;
-      frozenRow.querySelectorAll<HTMLTableCellElement>("td").forEach((cell) => {
-        cell.style.height = `${height}px`;
-      });
-    });
+    if (frozenHeader && headerScroll) {
+      syncPairedOrderRowHeights(
+        [...frozenHeader.querySelectorAll<HTMLTableRowElement>("thead tr")],
+        [...headerScroll.querySelectorAll<HTMLTableRowElement>("thead tr")]
+      );
+    }
   }, []);
 
   const scheduleRowHeightSync = useCallback(() => {
@@ -1717,7 +1761,7 @@ export function OrderCountryBoard({
                       <col style={{ width: SELECT_COLUMN_WIDTH }} />
                     </colgroup>
                     <thead>
-                      <tr className="bg-slate-50">
+                      <tr data-order-row="header" className="bg-slate-50">
                         <th
                           className="bg-slate-50 align-middle px-2 py-2 text-center"
                           style={{ width: GRIP_COLUMN_WIDTH, minWidth: GRIP_COLUMN_WIDTH, maxWidth: GRIP_COLUMN_WIDTH }}
@@ -1742,7 +1786,7 @@ export function OrderCountryBoard({
                       ))}
                     </colgroup>
                     <thead>
-                      <tr className="bg-slate-50">
+                      <tr data-order-row="header" className="bg-slate-50">
                         {visibleColumns.map((column) => (
                           <th
                             key={column.key}
