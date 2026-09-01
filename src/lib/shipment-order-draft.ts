@@ -227,7 +227,7 @@ export function openIndividualShipmentsFromOrders(
 ) {
   if (!rows.length) return;
   const keys = rows.map((row) => {
-    const draft = orderBoardRowsToShipmentDraft(row, countryFallback, registeredDestinations, exportProducts);
+    const draft = orderBoardRowsToShipmentDraft([row], countryFallback, registeredDestinations, exportProducts);
     return storeShipmentDraft(draft);
   });
   for (const key of keys) {
