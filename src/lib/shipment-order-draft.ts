@@ -193,20 +193,16 @@ export function openShipmentRegistration(draft: ShipmentOrderDraft) {
   openShipmentDraftInNewTab(key);
 }
 
+let openingIndividualShipments = false;
+
+function rowShipmentDedupeKey(row: OrderRowShipmentSource & { key?: string }) {
+  return row.key || `${row.buyer}|${row.piNo}|${row.productName}|${row.productionRequestNo}`;
+}
+
 function openShipmentDraftInNewTab(key: string) {
   const url = `/shipments/new?draft=${encodeURIComponent(key)}`;
-  // Reusing "_blank" for back-to-back opens can navigate the same tab; use a unique name per draft.
-  const opened = window.open(url, `shipment-draft-${key}`, "noopener,noreferrer");
-  if (opened) return;
-
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.target = "_blank";
-  anchor.rel = "noopener noreferrer";
-  anchor.style.display = "none";
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
+  const tab = window.open(url, `shipment-draft-${key}`);
+  if (tab) tab.opener = null;
 }
 
 export function openCombinedShipmentFromOrders(
@@ -225,12 +221,20 @@ export function openIndividualShipmentsFromOrders(
   registeredDestinations?: RegisteredDestination[],
   exportProducts?: ExportProductOption[]
 ) {
-  if (!rows.length) return;
-  const keys = rows.map((row) => {
-    const draft = orderBoardRowsToShipmentDraft([row], countryFallback, registeredDestinations, exportProducts);
-    return storeShipmentDraft(draft);
-  });
-  for (const key of keys) {
-    openShipmentDraftInNewTab(key);
+  if (!rows.length || openingIndividualShipments) return;
+  openingIndividualShipments = true;
+  try {
+    const uniqueRows = [...new Map(rows.map((row) => [rowShipmentDedupeKey(row), row])).values()];
+    const keys = uniqueRows.map((row) => {
+      const draft = orderBoardRowsToShipmentDraft([row], countryFallback, registeredDestinations, exportProducts);
+      return storeShipmentDraft(draft);
+    });
+    for (const key of keys) {
+      openShipmentDraftInNewTab(key);
+    }
+  } finally {
+    window.setTimeout(() => {
+      openingIndividualShipments = false;
+    }, 500);
   }
 }
