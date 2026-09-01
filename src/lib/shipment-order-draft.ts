@@ -190,7 +190,23 @@ export function loadShipmentDraft(key: string): ShipmentOrderDraft | null {
 
 export function openShipmentRegistration(draft: ShipmentOrderDraft) {
   const key = storeShipmentDraft(draft);
-  window.open(`/shipments/new?draft=${encodeURIComponent(key)}`, "_blank", "noopener,noreferrer");
+  openShipmentDraftInNewTab(key);
+}
+
+function openShipmentDraftInNewTab(key: string) {
+  const url = `/shipments/new?draft=${encodeURIComponent(key)}`;
+  // Reusing "_blank" for back-to-back opens can navigate the same tab; use a unique name per draft.
+  const opened = window.open(url, `shipment-draft-${key}`, "noopener,noreferrer");
+  if (opened) return;
+
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.target = "_blank";
+  anchor.rel = "noopener noreferrer";
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
 }
 
 export function openCombinedShipmentFromOrders(
@@ -209,7 +225,12 @@ export function openIndividualShipmentsFromOrders(
   registeredDestinations?: RegisteredDestination[],
   exportProducts?: ExportProductOption[]
 ) {
-  for (const row of rows) {
-    openShipmentRegistration(orderBoardRowsToShipmentDraft([row], countryFallback, registeredDestinations, exportProducts));
+  if (!rows.length) return;
+  const keys = rows.map((row) => {
+    const draft = orderBoardRowsToShipmentDraft(row, countryFallback, registeredDestinations, exportProducts);
+    return storeShipmentDraft(draft);
+  });
+  for (const key of keys) {
+    openShipmentDraftInNewTab(key);
   }
 }
