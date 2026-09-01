@@ -20,10 +20,9 @@ export default async function ShipmentsPage({ searchParams }: { searchParams: Pr
   const params = await searchParams;
   const q = params.q?.trim();
   const status = params.status as ShipmentStatus | undefined;
-  const defaultView = user.team === Team.OVERSEAS_SALES_SUPPORT ? "export" : "sales";
-  const view = params.view === "export" || params.view === "sales" || params.view === "datalogger" ? params.view : defaultView;
+  const view = params.view === "export" || params.view === "sales" || params.view === "datalogger" ? params.view : null;
 
-  const [shipments, dataLoggers, users] = await Promise.all([
+  const [shipments, dataLoggers, users, salesOwnerAssignment] = await Promise.all([
     prisma.shipmentRequest.findMany({
       where: {
         ...(status ? { status } : {}),
@@ -70,8 +69,12 @@ export default async function ShipmentsPage({ searchParams }: { searchParams: Pr
       take: shipmentListLimit
     }),
     view === "datalogger" ? prisma.dataLogger.findMany({ orderBy: { createdAt: "desc" }, take: dataLoggerListLimit }) : Promise.resolve([]),
-    prisma.user.findMany({ select: { name: true, team: true }, orderBy: { name: "asc" } })
+    prisma.user.findMany({ select: { name: true, team: true }, orderBy: { name: "asc" } }),
+    prisma.buyerMaster.findFirst({ where: { salesOwner: user.name }, select: { id: true } })
   ]);
+
+  const defaultView = salesOwnerAssignment ? "sales" : "export";
+  const activeView = view ?? defaultView;
 
   const grouped = shipments.reduce((map, shipment) => {
     const key = shipment.salesOwner || "담당자 미지정";
@@ -173,20 +176,20 @@ export default async function ShipmentsPage({ searchParams }: { searchParams: Pr
       </div>
 
       <div className="flex gap-2">
-        <Link href={tabHref("sales")} className={view === "sales" ? "btn-primary" : "btn"}>
+        <Link href={tabHref("sales")} className={activeView === "sales" ? "btn-primary" : "btn"}>
           영업담당자별
         </Link>
-        <Link href={tabHref("export")} className={view === "export" ? "btn-primary" : "btn"}>
+        <Link href={tabHref("export")} className={activeView === "export" ? "btn-primary" : "btn"}>
           수출담당자별
         </Link>
-        <Link href={tabHref("datalogger")} className={view === "datalogger" ? "btn-primary" : "btn"}>
+        <Link href={tabHref("datalogger")} className={activeView === "datalogger" ? "btn-primary" : "btn"}>
           데이터로거 관리
         </Link>
       </div>
 
-      {view === "datalogger" ? null : (
+      {activeView === "datalogger" ? null : (
         <form className="panel flex items-end gap-3 p-4">
-          <input type="hidden" name="view" value={view} />
+          <input type="hidden" name="view" value={activeView} />
           <div className="field min-w-96">
             <label>검색</label>
             <input name="q" defaultValue={q ?? ""} placeholder="수출국, 바이어, 제품명, PI No., INV No., 생산의뢰번호" />
@@ -207,7 +210,7 @@ export default async function ShipmentsPage({ searchParams }: { searchParams: Pr
         </form>
       )}
 
-      {view === "datalogger" ? (
+      {activeView === "datalogger" ? (
         <DataLoggerTable
           rows={dataLoggers.map((row) => ({
             id: row.id,
@@ -217,12 +220,12 @@ export default async function ShipmentsPage({ searchParams }: { searchParams: Pr
             releaseStatus: row.releaseStatus
           }))}
         />
-      ) : view === "sales" ? (
+      ) : activeView === "sales" ? (
         <ShipmentsListClient groups={groups} currentUserName={user.name} />
       ) : (
         <ExportShipmentsKanbanClient groups={exportGroups} currentUserName={user.name} />
       )}
-      {view === "sales" || view === "export" ? <FloatingExportButton kind="shipments" shipmentOptions={shipmentExportOptions} /> : null}
+      {activeView === "sales" || activeView === "export" ? <FloatingExportButton kind="shipments" shipmentOptions={shipmentExportOptions} /> : null}
     </div>
   );
 }
